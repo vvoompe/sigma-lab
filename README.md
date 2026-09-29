@@ -73,6 +73,30 @@ dotnet ef database update --project src/Lab.Migrations.Sqlite
 dotnet ef database update --project src/Lab.Migrations.Postgres
 ```
 
+## Явні рядки підключення (коли треба вказати свій шлях, порт або базу)
+
+Застосунок читає рядки підключення з конфігурації, тому їх можна перекрити змінними середовища:
+
+```bash
+# API на конкретному файлі SQLite (увага: Windows-шлях, не /c/...)
+ConnectionStrings__Sqlite="Data Source=C:/шлях/до/lab.db" dotnet run --project src/Lab.Api
+
+# API на PostgreSQL з іншого порту
+LAB_DB_PROVIDER=Postgres \
+ConnectionStrings__Postgres="Host=localhost;Port=55433;Database=lab;Username=lab;Password=lab_dev_password" \
+dotnet run --project src/Lab.Api
+
+# `dotnet ef` з тим самим рядком, що й застосунок
+LAB_POSTGRES_CONNECTION="Host=localhost;Port=55433;Database=lab;Username=lab;Password=lab_dev_password" \
+dotnet ef database update --project src/Lab.Migrations.Postgres
+
+LAB_SQLITE_CONNECTION="Data Source=C:/шлях/до/lab.db" \
+dotnet ef database update --project src/Lab.Migrations.Sqlite
+```
+
+`LAB_POSTGRES_CONNECTION` і `LAB_SQLITE_CONNECTION` читають лише фабрики часу проєктування
+(тобто команди `dotnet ef`); застосунок використовує `ConnectionStrings__*`.
+
 ## Діагностика
 
 | Симптом | Причина і що робити |
