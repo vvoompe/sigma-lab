@@ -1,0 +1,33 @@
+# Збірка й артефакти тестів
+bin/
+obj/
+TestResults/
+coverage/
+coverage-report/
+*.coverage
+*.trx
+
+# Локальні дані (файли SQLite, дампи PostgreSQL)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Секрети й локальні налаштування
+.env
+.env.local
+appsettings.Development.local.json
+*.user
+*.suo
+.vs/
+.idea/
+.vscode/
+
+# Матеріали кафедри (лекції, PDF) - не публікуються
+materials/
+
+# Артефакти MAUI / Android
+*.apk
+*.aab
+*.keystore

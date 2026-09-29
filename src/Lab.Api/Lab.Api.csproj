@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>Lab.Api</RootNamespace>
+    <!-- Ідентифікатор для Secret Manager: локальні секрети (JWT-ключ) зберігаються поза
+         репозиторієм: dotnet user-secrets set "Jwt:Key" "..." -->
+    <UserSecretsId>lab-stem-api</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Вбудована OpenAPI-документація ASP.NET Core 10 (AddOpenApi/MapOpenApi). -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lab.Application\Lab.Application.csproj" />
+    <ProjectReference Include="..\Lab.Contracts\Lab.Contracts.csproj" />
+    <ProjectReference Include="..\Lab.Infrastructure\Lab.Infrastructure.csproj" />
+    <!-- Проєкти міграцій потрібні під час виконання: EF Core бере з них схему. -->
+    <ProjectReference Include="..\Lab.Migrations.Postgres\Lab.Migrations.Postgres.csproj" />
+    <ProjectReference Include="..\Lab.Migrations.Sqlite\Lab.Migrations.Sqlite.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Тести інтеграції створюють застосунок через WebApplicationFactory, тому вони
+         мають бачити точку входу. -->
+    <InternalsVisibleTo Include="Lab.Application.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

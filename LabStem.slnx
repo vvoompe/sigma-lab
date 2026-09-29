@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Lab.Api/Lab.Api.csproj" />
+    <Project Path="src/Lab.Application/Lab.Application.csproj" />
+    <Project Path="src/Lab.Contracts/Lab.Contracts.csproj" />
+    <Project Path="src/Lab.Domain/Lab.Domain.csproj" />
+    <Project Path="src/Lab.Infrastructure/Lab.Infrastructure.csproj" />
+    <Project Path="src/Lab.Migrations.Postgres/Lab.Migrations.Postgres.csproj" />
+    <Project Path="src/Lab.Migrations.Sqlite/Lab.Migrations.Sqlite.csproj" />
+    <Project Path="src/Lab.Worker/Lab.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Lab.Application.Tests/Lab.Application.Tests.csproj" />
+    <Project Path="tests/Lab.Domain.Tests/Lab.Domain.Tests.csproj" />
+    <Project Path="tests/Lab.Postgres.Tests/Lab.Postgres.Tests.csproj" />
+  </Folder>
+</Solution>
