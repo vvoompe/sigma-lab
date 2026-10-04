@@ -14,6 +14,7 @@
 | 4 | Логування без зауважень аналізатора | `DatabaseStartup`, `SyncWorker` |
 | 5 | Тести проти PostgreSQL не мають падати на машині без Docker | `Lab.Postgres.Tests` |
 | 6 | SQLite повертає `DateTime` без позначки UTC, PostgreSQL - з нею | `SiteService`, перевірено на прогоні API |
+| 7 | `.gitignore` із `*.sqlite` виключив із репозиторію проєкт `Lab.Migrations.Sqlite` | `.gitignore`, рядок `*.sqlite` |
 
 ---
 
@@ -114,3 +115,26 @@ Postgres: набори незалежні, назви міграцій можу�
 
 **Перевірка.** Прогін API на SQLite: `POST /api/sites` → `createdAt` із `Z`; `GET /api/sites`
 після перезапуску контексту → `createdAt` без `Z`.
+
+## 7. `.gitignore` із `*.sqlite` виключив цілий проєкт міграцій
+
+**Проблема.** Після першого push у GitHub CI упав на кроці `dotnet restore`:
+`The project file ".../src/Lab.Migrations.Sqlite/Lab.Migrations.Sqlite.csproj" was not found`,
+хоча локально solution збирався й тести проходили.
+
+**Як виявили.** `git check-ignore -v src/Lab.Migrations.Sqlite/Lab.Migrations.Sqlite.csproj`
+показав `.gitignore:14:*.sqlite`. На Windows `core.ignorecase = true`, тому шаблон `*.sqlite`
+(який мав закривати лише локальні файли бази) збігається з **каталогом**
+`src/Lab.Migrations.Sqlite` і виключає його повністю. `git ls-files | grep Migrations.Sqlite`
+повертав 0 файлів - тобто в репозиторії проєкту не було взагалі.
+
+**Рішення.** Шаблон `*.sqlite` прибрано, лишились явні `*.sqlite3` і `*.sqlite-journal`.
+У `.gitignore` додано попередження, щоб шаблон не повернули випадково. Файли проєкту
+додано в репозиторій і перевішено через CI.
+
+**Що це дало.** CI знову зелений, і з'явилось правило перевірки: якщо «локально працює,
+а на CI файлів немає» - перша команда `git check-ignore -v <шлях>`, а не пошук проблеми
+в коді. Це загальний клас пасток: локальна збірка читає файли з диска, а не з git.
+
+**Перевірка.** `git ls-files | grep -c Migrations.Sqlite` більше нуля і зелений прогін CI
+на гілці `main`.
