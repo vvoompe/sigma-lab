@@ -1,0 +1,36 @@
+# CODEOWNERS - хто автоматично призначається рев'юером на PR
+#
+# Покласти у репозиторій за шляхом: .github/CODEOWNERS
+# Команда «Сігма»: Саша @vvoompe (Z1), Артем @DiXer-code (Z2), Ваня @llkbb (Z3), Юра @otmepush (Z4).
+# Правило GitHub: останній збіг у файлі перемагає, тому конкретніші шляхи - нижче загальних.
+
+# --- Z1: дані, схема, розрахункове ядро (власник: Саша) ---
+src/Lab.Domain/                 @vvoompe
+src/Lab.Infrastructure/         @vvoompe
+src/Lab.Migrations.Sqlite/      @vvoompe
+src/Lab.Migrations.Postgres/    @vvoompe
+tests/Lab.Domain.Tests/         @vvoompe
+
+# --- Z2: контракти, API, CI, Docker (власник: Артем) ---
+src/Lab.Contracts/              @DiXer-code
+src/Lab.Application/            @DiXer-code
+docker/                         @DiXer-code
+.github/                        @DiXer-code
+tests/Lab.Application.Tests/    @DiXer-code
+
+# --- Z3: безпека й доступ (власник: Ваня) + рев'ю від власника API ---
+src/Lab.Api/Security/           @llkbb
+src/Lab.Api/Controllers/AuthController.cs  @llkbb
+src/Lab.Api/Policies/           @llkbb
+
+# --- Z4: клієнт, синхронізація, фоновий обробник (власник: Юра) ---
+src/Lab.Client.Maui/            @otmepush
+src/Lab.Worker/                 @otmepush
+tests/Lab.Postgres.Tests/       @otmepush
+
+# --- Спільне: правила, документація, META-USAGE - рев'ю від усіх ---
+AGENTS.md                       @vvoompe @DiXer-code @llkbb @otmepush
+README.md                       @vvoompe @DiXer-code @llkbb @otmepush
+docs/META-USAGE.md              @vvoompe @DiXer-code @llkbb @otmepush
+docs/acceptance-cases.md        @vvoompe @DiXer-code @llkbb @otmepush
+docs/decisions-log.md           @vvoompe @DiXer-code @llkbb @otmepush

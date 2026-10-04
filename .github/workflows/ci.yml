@@ -1,0 +1,73 @@
+name: CI
+
+# Головне правило: у main потрапляє лише те, що збирається без попереджень і проходить тести.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    # PostgreSQL піднімається як сервіс: тести проти реальної СУБД виконуються в CI,
+    # а не позначаються пропущеними.
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: lab
+          POSTGRES_USER: lab
+          POSTGRES_PASSWORD: lab_ci_password
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U lab -d lab"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      LAB_DB_PROVIDER: Postgres
+      ConnectionStrings__Postgres: Host=localhost;Port=55432;Database=lab;Username=lab;Password=lab_ci_password
+      LAB_TEST_POSTGRES: "1"
+      Database__MigrateOnStartup: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Показати версію SDK
+        run: dotnet --version
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build (Release, попередження = помилка)
+        run: dotnet build --no-restore -c Release
+
+      - name: Тести з покриттям
+        run: dotnet test --no-build -c Release --collect:"XPlat Code Coverage" --results-directory TestResults
+
+      - name: Злити й показати покриття
+        run: python3 scripts/coverage-summary.py
+
+      - name: Артефакт зі звітами покриття
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            TestResults/**/coverage.cobertura.xml
+            TestResults/coverage-summary.txt
+          if-no-files-found: warn
