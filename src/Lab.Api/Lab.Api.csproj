@@ -4,7 +4,7 @@
     <RootNamespace>Lab.Api</RootNamespace>
     <!-- Ідентифікатор для Secret Manager: локальні секрети (JWT-ключ) зберігаються поза
          репозиторієм: dotnet user-secrets set "Jwt:Key" "..." -->
-    <UserSecretsId>lab-stem-api</UserSecretsId>
+    <UserSecretsId>sigma-lab-api</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
