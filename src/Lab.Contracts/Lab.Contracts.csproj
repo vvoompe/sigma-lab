@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Lab.Contracts</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Контракти не залежать від EF Core: це тільки DTO, які бачить клієнт.
+       Залежність від домену потрібна лише щоб брати звідти правила предметної області
+       (межі довжини назви, діапазони координат) - тобто джерело істини одне. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Lab.Domain\Lab.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

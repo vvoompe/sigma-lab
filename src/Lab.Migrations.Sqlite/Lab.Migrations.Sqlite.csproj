@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Lab.Migrations.Sqlite</RootNamespace>
+    <!-- Код міграцій генерує EF Core, тому зауваження аналізаторів тут не валять збірку.
+         CA1861 виникає у згенерованих масивах-аргументах конфігурацій індексів. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CA1861</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lab.Domain\Lab.Domain.csproj" />
+    <ProjectReference Include="..\Lab.Infrastructure\Lab.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

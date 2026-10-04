@@ -1,0 +1,32 @@
+# docker compose для локальної розробки
+#
+# Підняти базу:      docker compose -f docker/dev-postgres.yml up -d
+# Перевірити стан:   docker compose -f docker/dev-postgres.yml ps
+# Зупинити:          docker compose -f docker/dev-postgres.yml down
+#
+# Пароль береться зі змінної середовища LAB_PG_PASSWORD (див. .env.example).
+# Реальні секрети в цей файл НЕ комітяться: у репозиторії лише значення за замовчуванням
+# для локальної розробки.
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: lab-postgres-dev
+    ports:
+      # Порт налаштовується: якщо 55432 уже зайнятий іншим проєктом, досить задати
+      # LAB_PG_PORT (наприклад 55433) - і той самий порт указати в рядку підключення.
+      - "${LAB_PG_PORT:-55432}:5432"
+    environment:
+      POSTGRES_DB: ${LAB_PG_DATABASE:-lab}
+      POSTGRES_USER: ${LAB_PG_USER:-lab}
+      POSTGRES_PASSWORD: ${LAB_PG_PASSWORD:-lab_dev_password}
+    volumes:
+      - lab-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${LAB_PG_USER:-lab} -d ${LAB_PG_DATABASE:-lab}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  lab-postgres-data:

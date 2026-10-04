@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Lab.Domain</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Домен не має жодних залежностей: ні EF Core, ні ASP.NET, ні посилань на інші проєкти.
+       Це перевіряється окремим тестом архітектури. -->
+
+</Project>

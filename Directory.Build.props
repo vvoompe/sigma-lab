@@ -1,0 +1,25 @@
+<Project>
+
+  <!-- Спільні налаштування для ВСІХ проєктів solution: MSBuild підхоплює цей файл
+       автоматично, тому жоден .csproj не дублює їх окремо. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Якість коду як умова збірки: критерій C4 вимагає нуль зауважень аналізатора,
+         тому будь-яке попередження валить збірку, а не накопичується. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsNotAsErrors>NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- Повна підтримка культур: українські рядки, формати дат і чисел. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <NeutralLanguage>uk-UA</NeutralLanguage>
+
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+</Project>

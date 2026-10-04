@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Lab.Application</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- EF Core потрібен лише для типів абстракцій (DbSet<T>) у IAppDbContext.
+         Конкретний провайдер тут не згадується - тому прикладна логіка не знає про СУБД. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lab.Contracts\Lab.Contracts.csproj" />
+    <ProjectReference Include="..\Lab.Domain\Lab.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
