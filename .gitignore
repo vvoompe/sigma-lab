@@ -8,11 +8,17 @@ coverage-report/
 *.trx
 
 # Локальні дані (файли SQLite, дампи PostgreSQL)
+#
+# УВАГА: не додавайте тут шаблон *.sqlite. Git на Windows порівнює шляхи без урахування
+# регістру, тому *.sqlite збігається з каталогом src/Lab.Migrations.Sqlite і мовчки
+# виключає з репозиторію цілий проєкт міграцій. Симптом: локально все збирається, а на CI
+# `dotnet restore` падає з «The project file ... was not found».
 *.db
 *.db-shm
 *.db-wal
-*.sqlite
+*.db-journal
 *.sqlite3
+*.sqlite-journal
 
 # Секрети й локальні налаштування
 .env
