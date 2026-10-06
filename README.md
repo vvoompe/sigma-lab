@@ -7,6 +7,17 @@
 [`CONTRIBUTING.md`](CONTRIBUTING.md). Поточні задачі - у розділі Issues цього репозиторію,
 розподілені за трьома контрольними точками.
 
+## Команда «Сігма»
+
+| Учасник | Зона відповідальності | Директорії |
+|---|---|---|
+| Олександр Маркграф ([@vvoompe](https://github.com/vvoompe)) | Z1 - домен, схема БД, індекси, міграції на дві СУБД, розрахункове ядро | `src/Lab.Domain`, `src/Lab.Infrastructure`, `src/Lab.Migrations.*` |
+| Артем Захарченко ([@DiXer-code](https://github.com/DiXer-code)) | Z2 - контракти, сервісний шар, API, CI, Docker | `src/Lab.Contracts`, `src/Lab.Application`, `src/Lab.Api`, `docker/`, `.github/` |
+| Іван Клебанський ([@llkbb](https://github.com/llkbb)) | Z3 - автентифікація, ролі, політики, володіння ресурсом, аудит | `src/Lab.Api/Security`, політики, журнал аудиту |
+| Юрій Петровський ([@otmepush](https://github.com/otmepush)) | Z4 - MAUI-клієнт, локальна база, черга синхронізації, фоновий обробник | `src/Lab.Client.Maui`, `src/Lab.Worker` |
+
+Деталі процесу, рівні складності зон і приймальні кейси - у [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Що вже працює в цьому скелеті
 
 - шарувата структура: домен → контракти → прикладний шар → інфраструктура → API / Worker;
