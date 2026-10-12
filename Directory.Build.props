@@ -8,7 +8,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
-    <!-- Якість коду як умова збірки: критерій C4 вимагає нуль зауважень аналізатора,
+    <!-- Якість коду як умова збірки: у проєкті тримаємо нуль зауважень аналізатора,
          тому будь-яке попередження валить збірку, а не накопичується. -->
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <WarningsNotAsErrors>NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
