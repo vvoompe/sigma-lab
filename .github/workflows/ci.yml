@@ -11,7 +11,41 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      maui: ${{ steps.paths.outputs.maui }}
+    steps:
+      - name: Checkout з історією для порівняння шляхів
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Чи змінився клієнт або його залежності
+        id: paths
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          changed=false
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            changed=true
+          else
+            git diff --name-only "$BASE_SHA" "$GITHUB_SHA" > changed-paths.txt
+            while IFS= read -r path; do
+              case "$path" in
+                src/Lab.Client.Maui/*|src/Lab.Domain/*|src/Lab.Contracts/*|src/Lab.Application/*|src/Lab.Infrastructure/*|src/Lab.Migrations.Sqlite/*|global.json|Directory.Build.*|Directory.Packages.props|NuGet.Config|nuget.config|LabStem.slnx|.github/workflows/ci.yml)
+                  changed=true
+                  break
+                  ;;
+              esac
+            done < changed-paths.txt
+          fi
+          echo "maui=$changed" >> "$GITHUB_OUTPUT"
+
   build-and-test:
     runs-on: ubuntu-latest
 
@@ -51,13 +85,13 @@ jobs:
         run: dotnet --version
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore LabStem.Server.slnf
 
       - name: Build (Release, попередження = помилка)
-        run: dotnet build --no-restore -c Release
+        run: dotnet build LabStem.Server.slnf --no-restore -c Release
 
       - name: Тести з покриттям
-        run: dotnet test --no-build -c Release --collect:"XPlat Code Coverage" --results-directory TestResults
+        run: dotnet test LabStem.Server.slnf --no-build -c Release --collect:"XPlat Code Coverage" --results-directory TestResults
 
       - name: Злити й показати покриття
         run: python3 scripts/coverage-summary.py
@@ -71,3 +105,41 @@ jobs:
             TestResults/**/coverage.cobertura.xml
             TestResults/coverage-summary.txt
           if-no-files-found: warn
+
+  maui-build:
+    needs: changes
+    if: needs.changes.outputs.maui == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      # Короткий шлях запобігає перевищенню MAX_PATH під час розпакування Android AAR.
+      NUGET_PACKAGES: C:\nuget\packages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Workloads Android та Windows
+        run: dotnet workload install maui-android maui-windows
+
+      - name: Залежності Android
+        shell: pwsh
+        run: |
+          if (-not (Test-Path $env:ANDROID_HOME)) { throw 'Android SDK відсутній на runner' }
+          if (-not (Test-Path $env:JAVA_HOME_21_X64)) { throw 'JDK 21 відсутній на runner' }
+          dotnet build src/Lab.Client.Maui/Lab.Client.Maui.csproj -t:InstallAndroidDependencies -f net10.0-android "-p:AndroidSdkDirectory=$env:ANDROID_HOME" "-p:JavaSdkDirectory=$env:JAVA_HOME_21_X64" -p:AcceptAndroidSdkLicenses=True
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Restore клієнта
+        run: dotnet restore src/Lab.Client.Maui/Lab.Client.Maui.csproj
+
+      - name: Windows Release
+        run: dotnet build src/Lab.Client.Maui/Lab.Client.Maui.csproj --no-restore -c Release -f net10.0-windows10.0.19041.0
+
+      - name: Android Release
+        shell: pwsh
+        run: dotnet build src/Lab.Client.Maui/Lab.Client.Maui.csproj --no-restore -c Release -f net10.0-android "-p:AndroidSdkDirectory=$env:ANDROID_HOME" "-p:JavaSdkDirectory=$env:JAVA_HOME_21_X64"

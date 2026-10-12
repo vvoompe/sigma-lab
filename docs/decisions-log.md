@@ -182,3 +182,21 @@ LocalDatabaseServiceTests застосовує спільні міграції S
 
 **Перевірка.** `MigrationFactoryTests`, `MigrationLifecycleTests` та
 `LocalDatabaseServiceTests`; прогін із `LAB_TEST_POSTGRES=1` і реальною PostgreSQL.
+
+## 10. Окрема CI-збірка клієнта у спільному solution
+
+**Проблема.** Після #22 клієнт збирається локально, але не входить у solution і CI.
+Додавання MAUI до звичайної Linux-збірки вимагало б платформних workloads на кожному прогоні.
+
+**Рішення.** LabStem.slnx містить MAUI; LabStem.Server.slnf фільтрує серверні проєкти
+й тести цього solution. Наявний job build-and-test використовує фільтр на Ubuntu.
+Окремий Windows job maui-build встановлює maui-android і maui-windows та збирає обидві
+платформи в Release. Фільтр шляхів у job changes враховує клієнт, транзитивні залежності,
+solution, SDK/пакетні параметри та workflow. Серверна перевірка виконується для кожного PR.
+
+**Що це дало.** Клієнт видно у solution, зміни його залежностей також перевіряються,
+а документаційні й серверні PR не встановлюють workloads. Issue #23 фіксує інтеграцію
+із зоною Z2; рев'ю належить @DiXer-code. Issue #9 очікує модель Z1 та приймання UI.
+
+**Перевірка.** Повна Release-збірка solution на Windows, build/test серверного фільтра
+з реальною PostgreSQL та CI job Android/Windows. Успішна компіляція не підтверджує запуск UI.

@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Lab.Api/Lab.Api.csproj" />
     <Project Path="src/Lab.Application/Lab.Application.csproj" />
+    <Project Path="src/Lab.Client.Maui/Lab.Client.Maui.csproj" />
     <Project Path="src/Lab.Contracts/Lab.Contracts.csproj" />
     <Project Path="src/Lab.Domain/Lab.Domain.csproj" />
     <Project Path="src/Lab.Infrastructure/Lab.Infrastructure.csproj" />

@@ -47,13 +47,13 @@ scripts/                   службові скрипти
 ## 3. Збірка, тести, покриття
 
 ```bash
-dotnet build LabStem.slnx -c Release          # попередження вважаються помилками
-dotnet test LabStem.slnx                      # тести PostgreSQL позначаться пропущеними
+dotnet build LabStem.Server.slnf -c Release          # попередження вважаються помилками
+dotnet test LabStem.Server.slnf                      # тести PostgreSQL позначаться пропущеними
 
 docker compose -f docker/dev-postgres.yml up -d
-LAB_TEST_POSTGRES=1 dotnet test LabStem.slnx  # усі тести, включно з PostgreSQL
+LAB_TEST_POSTGRES=1 dotnet test LabStem.Server.slnf  # усі тести, включно з PostgreSQL
 
-dotnet test LabStem.slnx -c Release --collect:"XPlat Code Coverage" --results-directory TestResults
+dotnet test LabStem.Server.slnf -c Release --collect:"XPlat Code Coverage" --results-directory TestResults
 python3 scripts/coverage-summary.py           # зведення покриття і перевірка порога
 ```
 
@@ -165,8 +165,8 @@ python3 scripts/coverage-summary.py           # зведення покритт�
 Closes #<номер>
 
 ## Як перевірити
-1. dotnet build LabStem.slnx -c Release
-2. dotnet test LabStem.slnx
+1. dotnet build LabStem.Server.slnf -c Release
+2. dotnet test LabStem.Server.slnf
 3. <сценарій вручну, якщо потрібен>
 
 ## Вивід перевірки
