@@ -134,12 +134,10 @@ jobs:
           dotnet build src/Lab.Client.Maui/Lab.Client.Maui.csproj -t:InstallAndroidDependencies -f net10.0-android "-p:AndroidSdkDirectory=$env:ANDROID_HOME" "-p:JavaSdkDirectory=$env:JAVA_HOME_21_X64" -p:AcceptAndroidSdkLicenses=True
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Restore клієнта
-        run: dotnet restore src/Lab.Client.Maui/Lab.Client.Maui.csproj
-
       - name: Windows Release
-        run: dotnet build src/Lab.Client.Maui/Lab.Client.Maui.csproj --no-restore -c Release -f net10.0-windows10.0.19041.0
+        # Restore виконується з тією самою конфігурацією та RID, що й build.
+        run: dotnet build src/Lab.Client.Maui/Lab.Client.Maui.csproj -c Release -f net10.0-windows10.0.19041.0
 
       - name: Android Release
         shell: pwsh
-        run: dotnet build src/Lab.Client.Maui/Lab.Client.Maui.csproj --no-restore -c Release -f net10.0-android "-p:AndroidSdkDirectory=$env:ANDROID_HOME" "-p:JavaSdkDirectory=$env:JAVA_HOME_21_X64"
+        run: dotnet build src/Lab.Client.Maui/Lab.Client.Maui.csproj -c Release -f net10.0-android "-p:AndroidSdkDirectory=$env:ANDROID_HOME" "-p:JavaSdkDirectory=$env:JAVA_HOME_21_X64"
