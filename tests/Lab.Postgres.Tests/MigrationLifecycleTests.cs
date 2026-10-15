@@ -58,6 +58,10 @@ public sealed class MigrationLifecycleTests
         var applied = (await database.Database.GetAppliedMigrationsAsync()).ToArray();
         Assert.NotEmpty(applied);
         Assert.False(database.Database.HasPendingModelChanges());
+        var owner = new Lab.Domain.Users.User("Дослідник", "owner@example.org");
+        database.Add(owner);
+        database.Entry(owner).Property(user => user.Id).CurrentValue = 42;
+        await database.SaveChangesAsync();
         database.Sites.Add(new Site { Name = "Відкат міграції", OwnerId = 42, CreatedAt = DateTime.UtcNow });
         await database.SaveChangesAsync();
         Assert.Equal(42, (await database.Sites.AsNoTracking().SingleAsync()).OwnerId);

@@ -23,7 +23,7 @@ public sealed class SqliteMigrationTests
             await db.Database.MigrateAsync();
 
             var applied = (await db.Database.GetAppliedMigrationsAsync()).ToList();
-            Assert.Single(applied);
+            Assert.Equal(new[] { "20260929104420_InitialCreate", "20261015200112_DomainModel", "20261015200437_SiteOwnership" }, applied);
 
             db.Sites.Add(new Site
             {
@@ -65,7 +65,7 @@ public sealed class SqliteMigrationTests
             {
                 // Ідемпотентність: друга спроба не створює дублів і не падає.
                 await second.Database.MigrateAsync();
-                Assert.Single(await second.Database.GetAppliedMigrationsAsync());
+                Assert.Equal(new[] { "20260929104420_InitialCreate", "20261015200112_DomainModel", "20261015200437_SiteOwnership" }, await second.Database.GetAppliedMigrationsAsync());
             }
         }
         finally

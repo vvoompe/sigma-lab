@@ -38,6 +38,10 @@ public sealed class LocalDatabaseServiceTests
             await using (var scope = services.CreateAsyncScope())
             {
                 var context = scope.ServiceProvider.GetRequiredService<LabDbContext>();
+                var owner = new Lab.Domain.Users.User("Дослідник", "owner@example.org");
+                context.Add(owner);
+                context.Entry(owner).Property(user => user.Id).CurrentValue = 42;
+                await context.SaveChangesAsync();
                 context.Sites.Add(new Site { Name = "Майданчик", Latitude = 50.45, Longitude = 30.52, OwnerId = 42, CreatedAt = DateTime.UtcNow });
                 await context.SaveChangesAsync();
             }

@@ -37,7 +37,10 @@ public sealed class Site
     public double Longitude { get; set; }
 
     /// <summary>Ідентифікатор власника (дослідника, який створив майданчик).</summary>
-    public int OwnerId { get; set; }
+    public int? OwnerId { get; set; }
+
+    /// <summary>Старий ідентифікатор до появи User; не є підтвердженим власником.</summary>
+    public int LegacyOwnerId { get; private set; }
 
     /// <summary>Момент створення запису в UTC.</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
