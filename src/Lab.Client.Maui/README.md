@@ -80,3 +80,7 @@ CI завжди виконує `build-and-test` на Ubuntu із PostgreSQL. Job
 Infrastructure, SQLite-міграцій, solution, спільних параметрів SDK/пакетів або самого workflow.
 Зміни лише документації, тестів, API чи Worker не встановлюють workloads.
 Job збирає обидві платформи; запуск UI на пристроях перевіряється окремо.
+
+Шляхи projects у серверному .slnf зберігаються зі зворотними слешами, екранованими
+в JSON (`\\`). Це потрібно для сумісності з SDK 10.0.100 на Windows. CI окремо
+перевіряє серверний фільтр на цьому SDK на Windows і Ubuntu без MAUI workloads.

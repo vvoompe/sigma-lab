@@ -106,6 +106,38 @@ jobs:
             TestResults/coverage-summary.txt
           if-no-files-found: warn
 
+  server-sdk-compatibility:
+    name: server-sdk-10.0.100 (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Мінімальний підтримуваний SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.100
+
+      - name: Заборонити підміну SDK новішим на runner
+        shell: pwsh
+        run: |
+          $sdkConfig = Get-Content global.json -Raw | ConvertFrom-Json
+          $sdkConfig.sdk.version = '10.0.100'
+          $sdkConfig.sdk.rollForward = 'disable'
+          $sdkConfig | ConvertTo-Json -Depth 5 | Set-Content global.json -Encoding utf8
+          $actualSdk = dotnet --version
+          if ($actualSdk -ne '10.0.100') { throw "Очікувався SDK 10.0.100, отримано $actualSdk" }
+
+      - name: Серверний фільтр на SDK 10.0.100
+        run: dotnet build LabStem.Server.slnf -c Release
+
+      - name: Серверні тести на SDK 10.0.100 (без PostgreSQL)
+        run: dotnet test LabStem.Server.slnf -c Release --no-build
+
   maui-build:
     needs: changes
     if: needs.changes.outputs.maui == 'true'
