@@ -94,5 +94,27 @@ public sealed class ModelValidationTests
         Assert.Equal(1, series.Version);
     }
 
+    [Fact]
+    public void Перейменування_приладу_не_чіпає_метрологію()
+    {
+        var instrument = new Instrument(1, "Прилад", "SN-1", "м", -10, 10, 0.1);
+        instrument.Rename("  Прилад 2  ");
+        Assert.Equal("Прилад 2", instrument.Name);
+        Assert.Equal("SN-1", instrument.SerialNumber);
+        Assert.Equal("м", instrument.Unit);
+        Assert.Equal(-10, instrument.MinValue);
+        Assert.Equal(10, instrument.MaxValue);
+        Assert.Equal(0.1, instrument.AbsoluteError);
+    }
+
+    [Fact]
+    public void Перейменування_приладу_валідує_назву()
+    {
+        var instrument = new Instrument(1, "Прилад", "SN-1", "м", -10, 10, 0.1);
+        Assert.Throws<ArgumentException>(() => instrument.Rename(" "));
+        Assert.Throws<ArgumentException>(() => instrument.Rename(new string('a', 101)));
+        Assert.Equal("Прилад", instrument.Name);
+    }
+
     private static Experiment CreateSeries() => new(1, 1, "Серія", new Instrument(1, "Прилад", "SN", "м", 0, 10, 0));
 }

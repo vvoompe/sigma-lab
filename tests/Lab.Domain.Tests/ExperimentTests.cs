@@ -101,5 +101,51 @@ public sealed class ExperimentTests
         Assert.Throws<ArgumentException>(() => new Experiment(1, 1, "Серія", instrument, reference));
     }
 
+    [Fact]
+    public void Чернетку_можна_перейменувати_і_це_піднімає_версію()
+    {
+        var series = CreateSeries();
+        series.Rename("  Нова серія  ");
+        Assert.Equal("Нова серія", series.Name);
+        Assert.Equal(2, series.Version);
+    }
+
+    [Fact]
+    public void Перейменування_на_те_саме_ім_я_не_піднімає_версію()
+    {
+        var series = CreateSeries();
+        series.Rename(" Серія ");
+        Assert.Equal("Серія", series.Name);
+        Assert.Equal(1, series.Version);
+    }
+
+    [Fact]
+    public void Підписану_серію_не_можна_перейменувати()
+    {
+        var series = CreateSeries();
+        series.Sign(2, DateTime.UtcNow);
+        Assert.Throws<InvalidOperationException>(() => series.Rename("Інша назва"));
+        Assert.Equal("Серія", series.Name);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Порожня_назва_серії_відхиляється(string name)
+    {
+        var series = CreateSeries();
+        Assert.ThrowsAny<ArgumentException>(() => series.Rename(name));
+        Assert.Equal("Серія", series.Name);
+        Assert.Equal(1, series.Version);
+    }
+
+    [Fact]
+    public void Занадто_довга_назва_серії_відхиляється()
+    {
+        var series = CreateSeries();
+        Assert.Throws<ArgumentException>(() => series.Rename(new string('a', 101)));
+        Assert.Equal("Серія", series.Name);
+    }
+
     private static Experiment CreateSeries() => new(1, 1, "Серія", new Instrument(1, "Прилад", "SN-1", "°C", -10, 50, 0.1));
 }

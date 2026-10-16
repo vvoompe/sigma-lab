@@ -77,6 +77,20 @@ public sealed class Experiment
         Changed();
     }
 
+    /// <summary>Зміна назви серії. Дозволено лише в чернетці.</summary>
+    public void Rename(string name)
+    {
+        EnsureDraft();
+        var validated = DomainRules.Text(name, nameof(name));
+        if (string.Equals(validated, Name, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        Name = validated;
+        Changed();
+    }
+
     public void Sign(int signedById, DateTime signedAt)
     {
         EnsureDraft();

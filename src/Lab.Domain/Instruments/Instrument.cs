@@ -36,6 +36,9 @@ public sealed class Instrument
     public double MaxValue { get; private set; }
     public double AbsoluteError { get; private set; }
 
+    /// <summary>Зміна описової назви. Серійний номер і метрологічні параметри незмінні.</summary>
+    public void Rename(string name) => Name = DomainRules.Text(name, nameof(name));
+
     public void ValidateMeasurement(double value, string unit)
     {
         DomainRules.Finite(value, nameof(value));
