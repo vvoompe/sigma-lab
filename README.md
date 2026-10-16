@@ -35,10 +35,10 @@
 
 ```bash
 # 1. Збірка (попередження вважаються помилками)
-dotnet build LabStem.slnx -c Release
+dotnet build LabStem.Server.slnf -c Release
 
 # 2. Тести без PostgreSQL (тести PG позначаться пропущеними)
-dotnet test LabStem.slnx
+dotnet test LabStem.Server.slnf
 
 # 3. Локальна PostgreSQL
 docker compose -f docker/dev-postgres.yml up -d
@@ -47,10 +47,10 @@ docker compose -f docker/dev-postgres.yml ps      # чекаємо стан heal
 # 4. Тести проти реальної PostgreSQL
 export LAB_TEST_POSTGRES=1
 export ConnectionStrings__Postgres="Host=localhost;Port=55432;Database=lab;Username=lab;Password=lab_dev_password"
-dotnet test LabStem.slnx
+dotnet test LabStem.Server.slnf
 
 # 5. Покриття
-dotnet test LabStem.slnx -c Release --collect:"XPlat Code Coverage" --results-directory TestResults
+dotnet test LabStem.Server.slnf -c Release --collect:"XPlat Code Coverage" --results-directory TestResults
 python3 scripts/coverage-summary.py
 
 # 6. API на SQLite
@@ -77,7 +77,7 @@ dotnet ef migrations list   --project src/Lab.Migrations.Sqlite
 # 1. сутність у src/Lab.Domain (без EF-атрибутів)
 # 2. Fluent-конфігурація у src/Lab.Infrastructure/Persistence/Configurations
 # 3. DbSet у LabDbContext
-dotnet build LabStem.slnx -c Release
+dotnet build LabStem.Server.slnf -c Release
 dotnet ef migrations add НазваЗміни --project src/Lab.Migrations.Sqlite
 dotnet ef migrations add НазваЗміни --project src/Lab.Migrations.Postgres
 dotnet ef database update --project src/Lab.Migrations.Sqlite
@@ -143,6 +143,24 @@ scripts/                   службові скрипти (зведення п�
 
 ## Що робити далі
 
+Фільтри, параметри пагінації та новий формат відповіді `GET /api/sites` описані у
+[`docs/api-sites.md`](docs/api-sites.md). Перевірки порога покриття й налаштування
+обов'язкового CI — у [`docs/ci-coverage.md`](docs/ci-coverage.md).
+
 Задачі розподілені в розділі Issues за трьома контрольними точками; план перших задач і зони
-відповідальності - у `CONTRIBUTING.md`. Автентифікацію (зона Z3) і клієнт MAUI (зона Z4) скелет
-свідомо не містить: це робота відповідних зон, а не заготовка.
+відповідальності - у `CONTRIBUTING.md`. Автентифікація належить Z3. Каркас MAUI від Z4 уже додано; екран серій очікує модель Z1.
+
+## Повна збірка з MAUI
+
+Серверні команди вище використовують `LabStem.Server.slnf` і працюють без MAUI workloads.
+Повний `LabStem.slnx` також містить клієнт Android/Windows. На Windows встановіть
+`dotnet workload install maui-android maui-windows`, Android SDK і JDK за
+[інструкцією клієнта](src/Lab.Client.Maui/README.md), потім виконайте:
+
+```powershell
+dotnet build LabStem.slnx -c Release
+dotnet test LabStem.Server.slnf -c Release
+```
+
+У CI серверні тести виконуються завжди; клієнт збирається окремим Windows job лише при
+змінах клієнта, його спільних залежностей або параметрів збірки.

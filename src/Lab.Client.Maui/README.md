@@ -42,8 +42,8 @@ SDK потрібної версії: компоненти MAUI для .NET 8/9 �
 
 ## Перевірки
 
-    dotnet build LabStem.slnx -c Release
-    dotnet test LabStem.slnx --collect:"XPlat Code Coverage"
+    dotnet build LabStem.Server.slnf -c Release
+    dotnet test LabStem.Server.slnf --collect:"XPlat Code Coverage"
     python scripts/coverage-summary.py
 
 LocalDatabaseServiceTests застосовує спільні міграції SQLite й перевіряє читання
@@ -62,5 +62,25 @@ CI для коміту `3f4cee5` підтвердив 62 успішні тест
 ## Межі цього етапу
 
 Доменна модель у main зараз має Site. Тому каркас не оголошує Experiment локально;
-список серій буде підключено до моделі Z1 після її злиття. Додавання MAUI-проєкту до solution та
-CI потребує узгодження інтеграції з власником Z2, оскільки .github/ належить його зоні.
+список серій буде підключено до моделі Z1 після її злиття. MAUI включено до LabStem.slnx;
+окремий job maui-build збирає Windows і Android при змінах клієнта або його залежностей.
+Інтеграція CI потребує рев’ю власника Z2.
+
+## Solution і CI
+
+`LabStem.slnx` містить також клієнт. Повна Release-збірка на Windows із встановленими
+workloads, Android SDK та JDK: `dotnet build LabStem.slnx -c Release`.
+Для серверних проєктів і тестів без MAUI (зокрема на Linux) використовуйте
+`LabStem.Server.slnf`; він фільтрує той самий solution.
+У командах build/test/restore вказуйте файл явно.
+
+CI завжди виконує `build-and-test` на Ubuntu із PostgreSQL. Job `changes` порівнює
+всі змінені шляхи PR із базовим комітом, а push у main — із попереднім комітом.
+`maui-build` на Windows запускається при зміні клієнта, Domain, Contracts, Application,
+Infrastructure, SQLite-міграцій, solution, спільних параметрів SDK/пакетів або самого workflow.
+Зміни лише документації, тестів, API чи Worker не встановлюють workloads.
+Job збирає обидві платформи; запуск UI на пристроях перевіряється окремо.
+
+Шляхи projects у серверному .slnf зберігаються зі зворотними слешами, екранованими
+в JSON (`\\`). Це потрібно для сумісності з SDK 10.0.100 на Windows. CI окремо
+перевіряє серверний фільтр на цьому SDK на Windows і Ubuntu без MAUI workloads.

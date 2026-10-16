@@ -1,0 +1,18 @@
+{
+  "solution": {
+    "path": "LabStem.slnx",
+    "projects": [
+      "src\\Lab.Api\\Lab.Api.csproj",
+      "src\\Lab.Application\\Lab.Application.csproj",
+      "src\\Lab.Contracts\\Lab.Contracts.csproj",
+      "src\\Lab.Domain\\Lab.Domain.csproj",
+      "src\\Lab.Infrastructure\\Lab.Infrastructure.csproj",
+      "src\\Lab.Migrations.Postgres\\Lab.Migrations.Postgres.csproj",
+      "src\\Lab.Migrations.Sqlite\\Lab.Migrations.Sqlite.csproj",
+      "src\\Lab.Worker\\Lab.Worker.csproj",
+      "tests\\Lab.Application.Tests\\Lab.Application.Tests.csproj",
+      "tests\\Lab.Domain.Tests\\Lab.Domain.Tests.csproj",
+      "tests\\Lab.Postgres.Tests\\Lab.Postgres.Tests.csproj"
+    ]
+  }
+}
