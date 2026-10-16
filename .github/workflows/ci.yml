@@ -93,6 +93,9 @@ jobs:
       - name: Тести з покриттям
         run: dotnet test LabStem.Server.slnf --no-build -c Release --collect:"XPlat Code Coverage" --results-directory TestResults
 
+      - name: Перевірити поріг покриття на граничних сценаріях
+        run: python3 -m unittest discover -s scripts -p "test_coverage_summary.py" -v
+
       - name: Злити й показати покриття
         run: python3 scripts/coverage-summary.py
 

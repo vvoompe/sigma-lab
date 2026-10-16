@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
@@ -16,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Lab.Api\Lab.Api.csproj" />
     <ProjectReference Include="..\..\src\Lab.Application\Lab.Application.csproj" />
     <ProjectReference Include="..\..\src\Lab.Contracts\Lab.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Lab.Domain\Lab.Domain.csproj" />

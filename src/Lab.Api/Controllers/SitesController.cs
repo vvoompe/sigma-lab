@@ -1,4 +1,5 @@
 using Lab.Application.Abstractions;
+using Lab.Contracts;
 using Lab.Contracts.Sites;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,10 +14,14 @@ namespace Lab.Api.Controllers;
 [Route("api/sites")]
 public sealed class SitesController(ISiteService sites) : ControllerBase
 {
-    /// <summary>Повертає всі майданчики.</summary>
+    /// <summary>Повертає сторінку майданчиків із фільтрами назви та координат.</summary>
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<SiteDto>>> ListAsync(CancellationToken cancellationToken) =>
-        Ok(await sites.ListAsync(cancellationToken));
+    [ProducesResponseType<PagedResult<SiteDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PagedResult<SiteDto>>> ListAsync(
+        [FromQuery] SiteQuery query,
+        CancellationToken cancellationToken) =>
+        Ok(await sites.ListAsync(query, cancellationToken));
 
     /// <summary>Повертає майданчик за ідентифікатором.</summary>
     [HttpGet("{id:int}", Name = "GetSiteById")]

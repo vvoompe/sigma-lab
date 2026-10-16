@@ -6,6 +6,7 @@ coverage/
 coverage-report/
 *.coverage
 *.trx
+__pycache__/
 
 # Локальні дані (файли SQLite, дампи PostgreSQL)
 #

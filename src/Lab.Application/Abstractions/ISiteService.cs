@@ -1,3 +1,4 @@
+using Lab.Contracts;
 using Lab.Contracts.Sites;
 
 namespace Lab.Application.Abstractions;
@@ -5,8 +6,8 @@ namespace Lab.Application.Abstractions;
 /// <summary>Операції над майданчиками (зона Z1 розширює цей сервіс своїми сценаріями).</summary>
 public interface ISiteService
 {
-    /// <summary>Повертає всі майданчики.</summary>
-    Task<IReadOnlyList<SiteDto>> ListAsync(CancellationToken cancellationToken = default);
+    /// <summary>Повертає сторінку майданчиків за фільтрами, відсортовану за назвою й Id.</summary>
+    Task<PagedResult<SiteDto>> ListAsync(SiteQuery query, CancellationToken cancellationToken = default);
 
     /// <summary>Повертає майданчик за ідентифікатором або <c>null</c>.</summary>
     Task<SiteDto?> GetAsync(int id, CancellationToken cancellationToken = default);

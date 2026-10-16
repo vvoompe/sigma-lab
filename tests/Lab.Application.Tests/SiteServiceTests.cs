@@ -44,9 +44,9 @@ public sealed class SiteServiceTests
         await service.CreateAsync(new CreateSiteRequest { Name = "Явір", Latitude = 50.0, Longitude = 30.0 });
         await service.CreateAsync(new CreateSiteRequest { Name = "Береза", Latitude = 50.1, Longitude = 30.1 });
 
-        var list = await service.ListAsync();
+        var list = await service.ListAsync(new SiteQuery());
 
-        Assert.Equal(["Береза", "Явір"], list.Select(item => item.Name).ToArray());
+        Assert.Equal(["Береза", "Явір"], list.Items.Select(item => item.Name).ToArray());
     }
 
     [Fact]
