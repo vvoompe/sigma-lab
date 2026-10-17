@@ -17,6 +17,44 @@ namespace Lab.Migrations.Sqlite.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
 
+            modelBuilder.Entity("Lab.Domain.Audit.AuditEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ActorId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TargetId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId", "OccurredAt");
+
+                    b.HasIndex("TargetType", "TargetId", "OccurredAt");
+
+                    b.ToTable("audit_entries", (string)null);
+                });
+
             modelBuilder.Entity("Lab.Domain.Experiments.Experiment", b =>
                 {
                     b.Property<int>("Id")
@@ -189,6 +227,38 @@ namespace Lab.Migrations.Sqlite.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Lab.Domain.Security.UserCredential", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("FailedAttempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LockoutUntil")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("PasswordUpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("user_credentials", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_user_credentials_failed_attempts", "\"FailedAttempts\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Lab.Domain.Sites.Site", b =>
                 {
                     b.Property<int>("Id")
@@ -255,6 +325,15 @@ namespace Lab.Migrations.Sqlite.Migrations
                     b.ToTable("lab_users", (string)null);
                 });
 
+            modelBuilder.Entity("Lab.Domain.Audit.AuditEntry", b =>
+                {
+                    b.HasOne("Lab.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Lab.Domain.Experiments.Experiment", b =>
                 {
                     b.HasOne("Lab.Domain.Instruments.Instrument", "Instrument")
@@ -308,6 +387,17 @@ namespace Lab.Migrations.Sqlite.Migrations
                         .IsRequired();
 
                     b.Navigation("Experiment");
+                });
+
+            modelBuilder.Entity("Lab.Domain.Security.UserCredential", b =>
+                {
+                    b.HasOne("Lab.Domain.Users.User", "User")
+                        .WithOne()
+                        .HasForeignKey("Lab.Domain.Security.UserCredential", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Lab.Domain.Sites.Site", b =>

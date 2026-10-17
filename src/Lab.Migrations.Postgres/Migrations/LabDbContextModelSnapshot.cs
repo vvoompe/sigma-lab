@@ -22,6 +22,46 @@ namespace Lab.Migrations.Postgres.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Lab.Domain.Audit.AuditEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("ActorId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("TargetId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId", "OccurredAt");
+
+                    b.HasIndex("TargetType", "TargetId", "OccurredAt");
+
+                    b.ToTable("audit_entries", (string)null);
+                });
+
             modelBuilder.Entity("Lab.Domain.Experiments.Experiment", b =>
                 {
                     b.Property<int>("Id")
@@ -202,6 +242,38 @@ namespace Lab.Migrations.Postgres.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Lab.Domain.Security.UserCredential", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("FailedAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("LockoutUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateTime>("PasswordUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("user_credentials", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_user_credentials_failed_attempts", "\"FailedAttempts\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Lab.Domain.Sites.Site", b =>
                 {
                     b.Property<int>("Id")
@@ -272,6 +344,15 @@ namespace Lab.Migrations.Postgres.Migrations
                     b.ToTable("lab_users", (string)null);
                 });
 
+            modelBuilder.Entity("Lab.Domain.Audit.AuditEntry", b =>
+                {
+                    b.HasOne("Lab.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Lab.Domain.Experiments.Experiment", b =>
                 {
                     b.HasOne("Lab.Domain.Instruments.Instrument", "Instrument")
@@ -325,6 +406,17 @@ namespace Lab.Migrations.Postgres.Migrations
                         .IsRequired();
 
                     b.Navigation("Experiment");
+                });
+
+            modelBuilder.Entity("Lab.Domain.Security.UserCredential", b =>
+                {
+                    b.HasOne("Lab.Domain.Users.User", "User")
+                        .WithOne()
+                        .HasForeignKey("Lab.Domain.Security.UserCredential", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Lab.Domain.Sites.Site", b =>

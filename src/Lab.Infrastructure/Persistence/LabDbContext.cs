@@ -1,5 +1,8 @@
 using Lab.Application.Abstractions;
+using Lab.Domain.Audit;
+using Lab.Domain.Security;
 using Lab.Domain.Sites;
+using Lab.Domain.Users;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lab.Infrastructure.Persistence;
@@ -14,6 +17,15 @@ public sealed class LabDbContext(DbContextOptions<LabDbContext> options)
 {
     /// <summary>Майданчики.</summary>
     public DbSet<Site> Sites => Set<Site>();
+
+    /// <inheritdoc />
+    public DbSet<User> Users => Set<User>();
+
+    /// <inheritdoc />
+    public DbSet<UserCredential> UserCredentials => Set<UserCredential>();
+
+    /// <inheritdoc />
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)

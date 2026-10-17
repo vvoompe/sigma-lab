@@ -1,5 +1,6 @@
 using Lab.Application.Abstractions;
 using Lab.Application.DependencyInjection;
+using Lab.Application.Security;
 using Lab.Infrastructure.Configuration;
 using Lab.Infrastructure.DependencyInjection;
 using Lab.Infrastructure.Persistence;
@@ -109,6 +110,7 @@ public sealed class InfrastructureConfigurationTests
             var services = new ServiceCollection();
             services.AddLabInfrastructure(configuration);
             services.AddLabApplication();
+            services.AddScoped<ICurrentUser>(_ => new TestCurrentUser());
 
             using var provider = services.BuildServiceProvider();
             using var scope = provider.CreateScope();
@@ -120,6 +122,13 @@ public sealed class InfrastructureConfigurationTests
             // Провайдер обрано саме той, що заданий конфігурацією.
             Assert.Contains("Sqlite", ((LabDbContext)context).Database.ProviderName, StringComparison.Ordinal);
         });
+    }
+
+    private sealed class TestCurrentUser : ICurrentUser
+    {
+        public int? Id => 1;
+
+        public string? Role => "Researcher";
     }
 
     [Fact]

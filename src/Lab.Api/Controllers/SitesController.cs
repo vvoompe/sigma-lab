@@ -42,4 +42,25 @@ public sealed class SitesController(ISiteService sites) : ControllerBase
         var created = await sites.CreateAsync(request, cancellationToken);
         return CreatedAtRoute("GetSiteById", new { id = created.Id }, created);
     }
+
+    /// <summary>Оновлює майданчик, якщо він належить поточному користувачу.</summary>
+    [HttpPut("{id:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> UpdateAsync(
+        int id,
+        [FromBody] UpdateSiteRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sites.UpdateAsync(id, request, cancellationToken);
+        return result switch
+        {
+            SiteUpdateStatus.Updated => NoContent(),
+            SiteUpdateStatus.NotFound => NotFound(),
+            SiteUpdateStatus.Forbidden => Forbid(),
+            _ => throw new InvalidOperationException("Невідомий результат оновлення майданчика."),
+        };
+    }
 }

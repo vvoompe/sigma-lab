@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Lab.Application.Abstractions;
+using Lab.Application.Security;
 using Lab.Contracts;
 using Lab.Contracts.Sites;
 using Lab.Domain.Sites;
@@ -12,7 +13,8 @@ namespace Lab.Application.Sites;
 /// жодного SQL і жодної згадки про конкретну СУБД.
 /// </summary>
 /// <param name="db">Контекст бази даних.</param>
-public sealed class SiteService(IAppDbContext db) : ISiteService
+/// <param name="currentUser">Поточний користувач із перевірених claims.</param>
+public sealed class SiteService(IAppDbContext db, ICurrentUser currentUser) : ISiteService
 {
     /// <inheritdoc />
     public async Task<PagedResult<SiteDto>> ListAsync(SiteQuery query, CancellationToken cancellationToken = default)
@@ -24,7 +26,8 @@ public sealed class SiteService(IAppDbContext db) : ISiteService
             throw new ArgumentException(string.Join(" ", validationResults.Select(result => result.ErrorMessage)), nameof(query));
         }
 
-        var filtered = db.Sites.AsNoTracking();
+        var ownerId = RequireCurrentUserId();
+        var filtered = db.Sites.AsNoTracking().Where(site => site.OwnerId == ownerId);
         var name = query.Name?.Trim();
         if (!string.IsNullOrEmpty(name))
         {
@@ -74,9 +77,10 @@ public sealed class SiteService(IAppDbContext db) : ISiteService
     /// <inheritdoc />
     public async Task<SiteDto?> GetAsync(int id, CancellationToken cancellationToken = default)
     {
+        var ownerId = RequireCurrentUserId();
         var site = await db.Sites
             .AsNoTracking()
-            .Where(item => item.Id == id)
+            .Where(item => item.Id == id && item.OwnerId == ownerId)
             .Select(item => new SiteDto(item.Id, item.Name, item.Latitude, item.Longitude, item.CreatedAt))
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -87,31 +91,14 @@ public sealed class SiteService(IAppDbContext db) : ISiteService
     public async Task<SiteDto> CreateAsync(CreateSiteRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-
-        // Правила домену перевіряємо ще до звернення до бази: у БД не має потрапляти
-        // те, що не є коректним за предметною областю.
-        if (!Site.IsNameValid(request.Name))
-        {
-            throw new ArgumentException(
-                $"Назва майданчика має містити від {Site.MinNameLength} до {Site.MaxNameLength} символів.",
-                nameof(request));
-        }
-
-        if (!Site.IsLatitudeInRange(request.Latitude))
-        {
-            throw new ArgumentException("Широта поза припустимим діапазоном.", nameof(request));
-        }
-
-        if (!Site.IsLongitudeInRange(request.Longitude))
-        {
-            throw new ArgumentException("Довгота поза припустимим діапазоном.", nameof(request));
-        }
+        ValidateSite(request.Name, request.Latitude, request.Longitude);
 
         var site = new Site
         {
             Name = request.Name.Trim(),
             Latitude = request.Latitude,
             Longitude = request.Longitude,
+            OwnerId = RequireCurrentUserId(),
             CreatedAt = DateTime.UtcNow,
         };
 
@@ -119,5 +106,57 @@ public sealed class SiteService(IAppDbContext db) : ISiteService
         await db.SaveChangesAsync(cancellationToken);
 
         return new SiteDto(site.Id, site.Name, site.Latitude, site.Longitude, site.CreatedAt);
+    }
+
+    /// <inheritdoc />
+    public async Task<SiteUpdateStatus> UpdateAsync(
+        int id,
+        UpdateSiteRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var site = await db.Sites.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (site is null)
+        {
+            return SiteUpdateStatus.NotFound;
+        }
+
+        if (site.OwnerId != RequireCurrentUserId())
+        {
+            return SiteUpdateStatus.Forbidden;
+        }
+
+        ValidateSite(request.Name, request.Latitude, request.Longitude);
+        site.Name = request.Name.Trim();
+        site.Latitude = request.Latitude;
+        site.Longitude = request.Longitude;
+        await db.SaveChangesAsync(cancellationToken);
+
+        return SiteUpdateStatus.Updated;
+    }
+
+    private int RequireCurrentUserId() =>
+        currentUser.Id is > 0 and var ownerId
+            ? ownerId
+            : throw new InvalidOperationException("Перевірений поточний користувач має містити додатний Id.");
+
+    private static void ValidateSite(string name, double latitude, double longitude)
+    {
+        if (!Site.IsNameValid(name))
+        {
+            throw new ArgumentException(
+                $"Назва майданчика має містити від {Site.MinNameLength} до {Site.MaxNameLength} символів.",
+                nameof(name));
+        }
+
+        if (!Site.IsLatitudeInRange(latitude))
+        {
+            throw new ArgumentOutOfRangeException(nameof(latitude), "Широта поза припустимим діапазоном.");
+        }
+
+        if (!Site.IsLongitudeInRange(longitude))
+        {
+            throw new ArgumentOutOfRangeException(nameof(longitude), "Довгота поза припустимим діапазоном.");
+        }
     }
 }
