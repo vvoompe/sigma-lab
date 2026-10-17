@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Lab.Api.Security;
 using Lab.Contracts;
 using Lab.Contracts.Sites;
 using Lab.Infrastructure.Persistence;
@@ -17,6 +18,32 @@ namespace Lab.Application.Tests;
 
 public sealed class SitesApiTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("короткий")]
+    public void Ключ_JWT_без_мінімальної_довжини_зупиняє_конфігурацію(string? key)
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            LabSecurityServiceCollectionExtensions.CreateSigningKey(key));
+    }
+
+    [Fact]
+    public void Конфігурація_без_Jwt__Key_зупиняє_запуск_API()
+    {
+        var previousKey = Environment.GetEnvironmentVariable("Jwt__Key");
+        try
+        {
+            Environment.SetEnvironmentVariable("Jwt__Key", null);
+            Assert.Throws<InvalidOperationException>(() =>
+                new ServiceCollection().AddLabSecurity());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("Jwt__Key", previousKey);
+        }
+    }
+
     [Fact]
     public async Task HTTP_створення_читання_і_фільтрована_сторінка()
     {
@@ -24,6 +51,7 @@ public sealed class SitesApiTests
         await connection.OpenAsync();
         await using var factory = new SitesApiFactory(connection);
         using var client = factory.CreateClient();
+        ApiTestJwt.Authenticate(client);
         await InitializeDatabaseAsync(factory);
 
         for (var index = 0; index < 3; index++)
@@ -69,6 +97,7 @@ public sealed class SitesApiTests
         await connection.OpenAsync();
         await using var factory = new SitesApiFactory(connection);
         using var client = factory.CreateClient();
+        ApiTestJwt.Authenticate(client);
 
         // Схему навмисно не створено: валідація має спрацювати до запиту до БД.
         using var response = await client.GetAsync("/api/sites?" + query);
@@ -88,10 +117,17 @@ public sealed class SitesApiTests
         await connection.OpenAsync();
         await using var factory = new SitesApiFactory(connection);
         using var client = factory.CreateClient();
+        ApiTestJwt.Authenticate(client);
         using var document = await client.GetFromJsonAsync<JsonDocument>("/openapi/v1.json");
 
         Assert.NotNull(document);
         var operation = document.RootElement.GetProperty("paths").GetProperty("/api/sites").GetProperty("get");
+        var schemes = document.RootElement.GetProperty("components").GetProperty("securitySchemes");
+        var bearer = schemes.GetProperty("Bearer");
+        Assert.Equal("http", bearer.GetProperty("type").GetString());
+        Assert.Equal("bearer", bearer.GetProperty("scheme").GetString());
+        Assert.Equal("JWT", bearer.GetProperty("bearerFormat").GetString());
+        Assert.NotEmpty(document.RootElement.GetProperty("security").EnumerateArray());
         var names = operation.GetProperty("parameters").EnumerateArray()
             .Select(parameter => parameter.GetProperty("name").GetString()).ToArray();
         foreach (var expected in new[] { "Page", "PageSize", "Name", "MinLatitude", "MaxLatitude", "MinLongitude", "MaxLongitude" })
@@ -120,6 +156,7 @@ public sealed class SitesApiTests
         await connection.OpenAsync();
         await using var factory = new SitesApiFactory(connection);
         using var client = factory.CreateClient();
+        ApiTestJwt.Authenticate(client);
         await InitializeDatabaseAsync(factory);
 
         var page = await client.GetFromJsonAsync<PagedResult<SiteDto>>("/api/sites?page=2147483647&pageSize=2147483647");
@@ -137,8 +174,51 @@ public sealed class SitesApiTests
         await scope.ServiceProvider.GetRequiredService<LabDbContext>().Database.EnsureCreatedAsync();
     }
 
+    [Fact]
+    public async Task HTTP_без_токена_повертає_401()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var factory = new SitesApiFactory(connection);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/api/sites");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HTTP_токен_із_невалідним_підписом_повертає_401()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var factory = new SitesApiFactory(connection);
+        using var client = factory.CreateClient();
+        ApiTestJwt.Authenticate(client, signingKey: System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+
+        using var response = await client.GetAsync("/api/sites");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HTTP_токен_із_невідомою_роллю_повертає_403()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var factory = new SitesApiFactory(connection);
+        using var client = factory.CreateClient();
+        ApiTestJwt.Authenticate(client, role: "Guest");
+
+        using var response = await client.GetAsync("/api/sites");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
     private sealed class SitesApiFactory(SqliteConnection connection) : WebApplicationFactory<Program>
     {
+        static SitesApiFactory() => ApiTestJwt.EnsureConfigured();
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseSetting("Database:MigrateOnStartup", "false");
