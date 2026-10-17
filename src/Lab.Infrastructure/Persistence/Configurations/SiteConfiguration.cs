@@ -24,8 +24,11 @@ public sealed class SiteConfiguration : IEntityTypeConfiguration<Site>
             .IsRequired();
         builder.Property(site => site.Latitude).IsRequired();
         builder.Property(site => site.Longitude).IsRequired();
-        builder.Property(site => site.OwnerId).IsRequired();
-        builder.Property(site => site.CreatedAt).IsRequired();
+        // Старі записи залишаються без підтвердженого власника, без фіктивних User.
+        builder.HasOne<Lab.Domain.Users.User>().WithMany().HasForeignKey(site => site.OwnerId).OnDelete(DeleteBehavior.Restrict);
+        builder.Property(site => site.CreatedAt)
+            .HasConversion(value => value, value => DateTime.SpecifyKind(value, DateTimeKind.Utc))
+            .IsRequired();
 
         // Індекси під реальні запити: пошук і сортування за назвою, пошук за координатами.
         builder.HasIndex(site => site.Name);
