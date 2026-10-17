@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Lab.Application.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -14,6 +15,7 @@ public static class LabSecurityServiceCollectionExtensions
     {
         var signingKey = CreateSigningKey(Environment.GetEnvironmentVariable("Jwt__Key"));
 
+        services.AddSingleton<IAccessTokenIssuer>(new JwtAccessTokenIssuer(signingKey));
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, ClaimsCurrentUser>();
         services
@@ -52,17 +54,26 @@ public static class LabSecurityServiceCollectionExtensions
             options.FallbackPolicy = new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
                 .RequireRole(roles)
+                .RequireAssertion(HasValidUserId)
                 .Build();
 
             foreach (var role in roles)
             {
                 options.AddPolicy(role, policy =>
-                    policy.RequireAuthenticatedUser().RequireRole(role));
+                    policy.RequireAuthenticatedUser().RequireRole(role).RequireAssertion(HasValidUserId));
             }
         });
 
         return services;
     }
+
+    private static bool HasValidUserId(AuthorizationHandlerContext context) =>
+        int.TryParse(
+            context.User.FindFirst("sub")?.Value,
+            NumberStyles.None,
+            CultureInfo.InvariantCulture,
+            out var userId)
+        && userId > 0;
 
     internal static SymmetricSecurityKey CreateSigningKey(string? key)
     {
