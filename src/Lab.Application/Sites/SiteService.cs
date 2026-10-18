@@ -126,10 +126,15 @@ public sealed class SiteService(IAppDbContext db, ICurrentUser currentUser) : IS
             return SiteUpdateStatus.Forbidden;
         }
 
-        ValidateSite(request.Name, request.Latitude, request.Longitude);
+        if (request.Latitude is not { } latitude || request.Longitude is not { } longitude)
+        {
+            throw new ArgumentException("Для повного оновлення потрібні обидві координати.", nameof(request));
+        }
+
+        ValidateSite(request.Name, latitude, longitude);
         site.Name = request.Name.Trim();
-        site.Latitude = request.Latitude;
-        site.Longitude = request.Longitude;
+        site.Latitude = latitude;
+        site.Longitude = longitude;
         await db.SaveChangesAsync(cancellationToken);
 
         return SiteUpdateStatus.Updated;
