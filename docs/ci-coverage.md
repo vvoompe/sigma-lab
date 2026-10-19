@@ -1,27 +1,52 @@
-# Обов'язкова перевірка покриття — Z2, issue #7
+# Перевірки CI та достовірність покриття — Z2
 
 `build-and-test` запускає Release-збірку, тести з PostgreSQL і перевірку покриття ядра.
-Поріг залишається 80% для Domain, Application та Infrastructure. Склад ядра й формулу
-наявного скрипту не змінено.
+Поріг — **80%**, точний склад ядра: `Lab.Domain`, `Lab.Application`, `Lab.Infrastructure`.
+Рядок ідентифікується трійкою `(package/assembly, відносний шлях усередині assembly, номер)`.
+Короткий, повний та Windows-шлях одного файла зливаються через **max hits**; нульові hits
+залишаються в знаменнику. Однакові шляхи різних assemblies не зливаються. Назва package,
+а не підрядок у filename, визначає належність до ядра. XML без визначеної assembly
+відхиляється, щоб не втрачати рядки мовчки.
 
-Команда `python3 -m unittest discover -s scripts -p "test_coverage_summary.py" -v`
-перевіряє справжній CLI скрипту в тимчасових каталогах: 79% повертає код 1, рівно 80% —
-код 0, звіти зливаються за рядками без подвоєння, Windows-шляхи розпізнаються,
-покриття API не приховує непокрите ядро, відсутні/порожні звіти не проходять.
-Ці перевірки виконуються також у CI; сторонніх пакетів Python не потрібно.
+```text
+python -m unittest discover -s scripts -p "test_*.py" -v
+dotnet build LabStem.Server.slnf -c Release
+dotnet test LabStem.Server.slnf -c Release --collect:"XPlat Code Coverage" --results-directory TestResults
+python scripts/coverage-summary.py
+```
 
-Артефакт `coverage` містить `coverage.cobertura.xml` та `coverage-summary.txt`.
-Перевірено його завантаження й вміст для PR-прогону #24:
-[CI 38247705221](https://github.com/vvoompe/sigma-lab/actions/runs/38247705221).
+Перед кожним збором перенесіть старий `TestResults` за межі цієї теки або працюйте в
+чистому клоні. Команди Bash/PowerShell, встановлення локального `dotnet-ef` та підключення
+до **окремої** тестової PostgreSQL описані в [README](../README.md). Пропущені PG-тести
+не є підтвердженням перевірки PostgreSQL. Артефакт CI `coverage` містить XML та підсумок.
 
-## Налаштування власником репозиторію
+## Захист main: перевірено 19.10.2026
 
-Зелений workflow сам по собі не блокує merge. Під час перевірки 12.10.2026 API для
-`main` показав `protected=true`, але список `required_status_checks.contexts` порожній
-і `enforcement_level=off`; застосовних branch rules API не повернув.
+GitHub API `branches/main` повертає `protected=true`, `enforcement_level=everyone` та
+чотири чинні required checks від GitHub Actions:
 
-Власник із доступом до Settings має додати `build-and-test` (GitHub Actions) до
-обов'язкових status checks у чинному захисті `main`, зберігши інші правила й вимогу
-рев'ю. Після збереження треба перевірити, що PR з невдалим `build-and-test` не дозволяє
-звичайний merge. Права поточного акаунта `DiXer-code` цього налаштування не дозволяють;
-пункт адміністративного захисту не позначається виконаним і #7 не закривається.
+- `changes`;
+- `build-and-test`;
+- `server-sdk-10.0.100 (ubuntu-latest)`;
+- `server-sdk-10.0.100 (windows-latest)`.
+
+Issue #7 закрито. Опис відсутніх required checks у перевірці **12.10.2026** був
+історичним станом; він більше не описує main. Залишкові правки ведуться в #30.
+
+## Агрегований gate для MAUI
+
+Новий `ci-gate` залежить від усіх чотирьох jobs, запускається з `if: always()` і читає
+їхні результати через `toJSON(needs)`. Сервер і фільтр шляхів мають завершитися успішно.
+Якщо `changes.outputs.maui=true`, приймається лише успішний `maui-build`; при `false`
+допускається штатний `skipped`. Failure/cancelled та відсутні дані завершують gate помилкою.
+Path filter збережено, серверні jobs не встановлюють MAUI workloads.
+
+**Дія власника @vvoompe після перевірки змін до #30:** додати `ci-gate` (GitHub Actions,
+app id 15368) до поточного списку required checks, **залишивши всі чотири наявні**,
+правило рев'ю та решту налаштувань. Акаунт DiXer-code має push, але не admin/maintain;
+тому код gate не означає, що налаштування вже застосовано.
+
+Після додавання власник має перевірити на тестовому PR: невдалий MAUI дає червоний gate
+і заборону merge, нерелевантні зміни зі skipped MAUI дають зелений gate. Локальні тести
+перевіряють також скасування, невідомий результат фільтра й падіння серверних jobs.
+До підтвердження Settings адміністративний пункт #30 залишається відкритим.
