@@ -1,4 +1,7 @@
 using Lab.Application.Sites;
+using Lab.Application.Abstractions;
+using Lab.Application.Security;
+using Lab.Domain.Users;
 using Lab.Contracts.Sites;
 using Lab.Domain.Sites;
 using Lab.Infrastructure.Persistence;
@@ -17,7 +20,7 @@ public sealed class SiteServiceTests
     public async Task Створення_майданчика_повертає_збережені_дані()
     {
         await using var db = await CreateContextAsync();
-        var service = new SiteService(db);
+        var service = CreateService(db);
 
         var created = await service.CreateAsync(new CreateSiteRequest
         {
@@ -29,6 +32,7 @@ public sealed class SiteServiceTests
         Assert.True(created.Id > 0);
         Assert.Equal("Лісова ділянка", created.Name);
         Assert.Equal(50.45, created.Latitude);
+        Assert.Equal(1, await db.Sites.Select(site => site.OwnerId).SingleAsync());
 
         var stored = await service.GetAsync(created.Id);
         Assert.NotNull(stored);
@@ -39,7 +43,7 @@ public sealed class SiteServiceTests
     public async Task Список_повертається_відсортованим_за_назвою()
     {
         await using var db = await CreateContextAsync();
-        var service = new SiteService(db);
+        var service = CreateService(db);
 
         await service.CreateAsync(new CreateSiteRequest { Name = "Явір", Latitude = 50.0, Longitude = 30.0 });
         await service.CreateAsync(new CreateSiteRequest { Name = "Береза", Latitude = 50.1, Longitude = 30.1 });
@@ -53,7 +57,7 @@ public sealed class SiteServiceTests
     public async Task Неіснуючий_майданчик_повертає_null()
     {
         await using var db = await CreateContextAsync();
-        var service = new SiteService(db);
+        var service = CreateService(db);
 
         Assert.Null(await service.GetAsync(9999));
     }
@@ -66,14 +70,60 @@ public sealed class SiteServiceTests
     public async Task Некоректні_дані_відхиляються(string name, double latitude, double longitude)
     {
         await using var db = await CreateContextAsync();
-        var service = new SiteService(db);
+        var service = CreateService(db);
 
-        await Assert.ThrowsAsync<ArgumentException>(() => service.CreateAsync(new CreateSiteRequest
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => service.CreateAsync(new CreateSiteRequest
         {
             Name = name,
             Latitude = latitude,
             Longitude = longitude,
         }));
+    }
+
+    [Fact]
+    public async Task Власник_може_оновити_майданчик()
+    {
+        await using var db = await CreateContextAsync();
+        var service = CreateService(db);
+        var created = await service.CreateAsync(new CreateSiteRequest
+        {
+            Name = "Початкова назва",
+            Latitude = 50,
+            Longitude = 30,
+        });
+
+        var status = await service.UpdateAsync(created.Id, new UpdateSiteRequest
+        {
+            Name = "Оновлена назва",
+            Latitude = 51,
+            Longitude = 31,
+        });
+
+        Assert.Equal(SiteUpdateStatus.Updated, status);
+        var updated = await service.GetAsync(created.Id);
+        Assert.NotNull(updated);
+        Assert.Equal("Оновлена назва", updated.Name);
+        Assert.Equal(51, updated.Latitude);
+    }
+
+    [Fact]
+    public async Task Чужий_майданчик_прихований_для_читання_і_заборонений_для_зміни()
+    {
+        await using var db = await CreateContextAsync();
+        var foreign = new Site { Name = "Чужий", OwnerId = 2 };
+        db.Sites.Add(foreign);
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        Assert.Null(await service.GetAsync(foreign.Id));
+        Assert.Equal(
+            SiteUpdateStatus.Forbidden,
+            await service.UpdateAsync(foreign.Id, new UpdateSiteRequest
+            {
+                Name = "Зміна",
+                Latitude = 50,
+                Longitude = 30,
+            }));
     }
 
     private static async Task<LabDbContext> CreateContextAsync()
@@ -89,6 +139,19 @@ public sealed class SiteServiceTests
 
         var db = new LabDbContext(options);
         await db.Database.EnsureCreatedAsync();
+        db.Users.AddRange(
+            new User("Власник", "owner@example.org"),
+            new User("Інший власник", "other-owner@example.org"));
+        await db.SaveChangesAsync();
         return db;
+    }
+
+    private static SiteService CreateService(LabDbContext db) => new(db, new TestCurrentUser(1));
+
+    private sealed class TestCurrentUser(int id) : ICurrentUser
+    {
+        public int? Id { get; } = id;
+
+        public string? Role => "Researcher";
     }
 }

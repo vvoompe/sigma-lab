@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -20,7 +21,8 @@ internal static class ApiTestJwt
     public static void Authenticate(
         HttpClient client,
         string role = "Researcher",
-        byte[]? signingKey = null)
+        byte[]? signingKey = null,
+        int userId = 1)
     {
         var credentials = new SigningCredentials(
             new SymmetricSecurityKey(signingKey ?? Encoding.UTF8.GetBytes(SigningKey)),
@@ -30,7 +32,7 @@ internal static class ApiTestJwt
             audience: LabJwt.Audience,
             claims:
             [
-                new Claim("sub", "1"),
+                new Claim("sub", userId.ToString(CultureInfo.InvariantCulture)),
                 new Claim("role", role),
             ],
             expires: DateTime.UtcNow.AddMinutes(5),
