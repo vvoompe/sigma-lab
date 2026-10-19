@@ -410,4 +410,3 @@ public sealed class ResourceApiTests : IAsyncLifetime, IAsyncDisposable
         }
     }
 }
-
