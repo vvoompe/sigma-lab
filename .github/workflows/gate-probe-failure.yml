@@ -1,0 +1,43 @@
+name: Тест gate failure — не зливати
+on:
+  pull_request:
+    branches: [fix/30-checkpoint-ci]
+permissions:
+  contents: read
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      maui: ${{ steps.paths.outputs.maui }}
+    steps:
+      - id: paths
+        run: echo "maui=true" >> "$GITHUB_OUTPUT"
+  build-and-test:
+    name: Імітація успішного сервера (failure)
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Лише перевірка залежностей gate; це не build сервера'
+  server-sdk-compatibility:
+    name: Імітація успішної матриці SDK (failure)
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Лише перевірка залежностей gate; це не перевірка SDK'
+  maui-build:
+    name: Імітація MAUI (failure)
+    needs: changes
+    if: needs.changes.outputs.maui == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 1
+  ci-gate:
+    name: ci-gate (failure probe)
+    # always потрібний, щоб невдалий або пропущений dependency не пропустив сам gate.
+    if: ${{ always() }}
+    needs: [changes, build-and-test, server-sdk-compatibility, maui-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Перевірити результати всіх обов'язкових jobs
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: python3 scripts/ci-gate.py
