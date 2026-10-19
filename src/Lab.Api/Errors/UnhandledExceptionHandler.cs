@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
+using Lab.Application.Resources;
+using Microsoft.EntityFrameworkCore;
 
 namespace Lab.Api.Errors;
 
@@ -23,6 +26,25 @@ internal sealed partial class UnhandledExceptionHandler(ILogger<UnhandledExcepti
 
         var (status, title, detail) = exception switch
         {
+            ResourceException resourceException => (
+                resourceException.Kind switch
+                {
+                    ResourceErrorKind.Unauthorized => StatusCodes.Status401Unauthorized,
+                    ResourceErrorKind.Forbidden => StatusCodes.Status403Forbidden,
+                    ResourceErrorKind.NotFound => StatusCodes.Status404NotFound,
+                    ResourceErrorKind.Conflict => StatusCodes.Status409Conflict,
+                    _ => StatusCodes.Status500InternalServerError,
+                },
+                resourceException.Message,
+                (string?)null),
+            DbUpdateConcurrencyException => (
+                StatusCodes.Status409Conflict,
+                "Ресурс змінено іншим запитом; перечитайте його перед повтором.",
+                (string?)null),
+            ValidationException validationException => (
+                StatusCodes.Status400BadRequest,
+                "Некоректні дані запиту.",
+                validationException.Message),
             ArgumentException argumentException => (
                 StatusCodes.Status400BadRequest,
                 "Некоректні дані запиту.",
@@ -47,7 +69,9 @@ internal sealed partial class UnhandledExceptionHandler(ILogger<UnhandledExcepti
                 Title = title,
                 Detail = detail,
             },
-            cancellationToken);
+            options: null,
+            contentType: "application/problem+json",
+            cancellationToken: cancellationToken);
 
         return true;
     }

@@ -1,6 +1,7 @@
 using Lab.Application.Abstractions;
 using Lab.Application.Security;
 using Lab.Application.Sites;
+using Lab.Application.Resources;
 using Lab.Domain.Security;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +17,8 @@ public static class LabApplicationServiceCollectionExtensions
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IPasswordHasher<UserCredential>, PasswordHasher<UserCredential>>();
         services.AddScoped<ISiteService, SiteService>();
+        services.AddScoped<IInstrumentService, InstrumentService>();
+        services.AddScoped<IExperimentService, ExperimentService>();
         return services;
     }
 }

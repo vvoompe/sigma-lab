@@ -2,6 +2,10 @@ using Lab.Domain.Audit;
 using Lab.Domain.Security;
 using Lab.Domain.Sites;
 using Lab.Domain.Users;
+using Lab.Domain.Instruments;
+using Lab.Domain.Experiments;
+using Lab.Domain.Measurements;
+using Lab.Domain.ReferenceValues;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lab.Application.Abstractions;
@@ -15,6 +19,11 @@ public interface IAppDbContext
 {
     /// <summary>Майданчики.</summary>
     DbSet<Site> Sites { get; }
+
+    DbSet<Instrument> Instruments { get; }
+    DbSet<Experiment> Experiments { get; }
+    DbSet<Measurement> Measurements { get; }
+    DbSet<ReferenceValue> ReferenceValues { get; }
 
     /// <summary>Профілі користувачів.</summary>
     DbSet<User> Users { get; }
