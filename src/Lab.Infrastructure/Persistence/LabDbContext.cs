@@ -3,6 +3,10 @@ using Lab.Domain.Audit;
 using Lab.Domain.Security;
 using Lab.Domain.Sites;
 using Lab.Domain.Users;
+using Lab.Domain.Instruments;
+using Lab.Domain.Experiments;
+using Lab.Domain.Measurements;
+using Lab.Domain.ReferenceValues;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lab.Infrastructure.Persistence;
@@ -17,6 +21,11 @@ public sealed class LabDbContext(DbContextOptions<LabDbContext> options)
 {
     /// <summary>Майданчики.</summary>
     public DbSet<Site> Sites => Set<Site>();
+
+    public DbSet<Instrument> Instruments => Set<Instrument>();
+    public DbSet<Experiment> Experiments => Set<Experiment>();
+    public DbSet<Measurement> Measurements => Set<Measurement>();
+    public DbSet<ReferenceValue> ReferenceValues => Set<ReferenceValue>();
 
     /// <inheritdoc />
     public DbSet<User> Users => Set<User>();
