@@ -26,7 +26,8 @@ SDK потрібної версії: компоненти MAUI для .NET 8/9 �
 
 Клієнт зберігає SQLite файл у приватному каталозі застосунку та застосовує наявні міграції
 з Lab.Migrations.Sqlite. Екран показує майданчики з локальної БД і стан черги синхронізації.
-Після злиття моделі Experiment у main екран серій має використовувати саме її.
+Спільна модель Experiment уже додана до main у PR #26. Підключення екрана серій до неї
+залишається наступною частиною #9 (ЧП2); локальна копія моделі не потрібна.
 
 ## Черга синхронізації
 
@@ -42,9 +43,51 @@ SDK потрібної версії: компоненти MAUI для .NET 8/9 �
 
 ## Перевірки
 
-    dotnet build LabStem.Server.slnf -c Release
-    dotnet test LabStem.Server.slnf --collect:"XPlat Code Coverage"
-    python scripts/coverage-summary.py
+Команди виконуються з кореня репозиторію. Серверні тести перевіряють також локальні
+сервіси клієнта без MAUI workloads, але не запускають його UI.
+
+Перед **кожним** збором покриття потрібен свіжий кореневий каталог `TestResults`.
+Архів попереднього прогону має бути поза цим каталогом; не додавайте його в Git.
+Скрипт зливає всі XML усередині `TestResults`, тому старі звіти можуть приховати регресію.
+
+```text
+dotnet build LabStem.Server.slnf -c Release
+dotnet test LabStem.Server.slnf -c Release --collect:"XPlat Code Coverage" --results-directory TestResults
+python scripts/coverage-summary.py
+```
+
+Якщо Python доступний як `python3`, використовуйте цю назву. Приклад збереження
+старих результатів у PowerShell перед командою тестів:
+
+```powershell
+if (Test-Path -LiteralPath TestResults) {
+    Rename-Item -LiteralPath TestResults -NewName ('TestResults.previous-' + [guid]::NewGuid().ToString('N'))
+}
+```
+
+За замовчуванням PostgreSQL-сценарії позначаються пропущеними. Для повного прогону
+підготуйте окрему тестову PostgreSQL 15 і задайте змінні перед тими самими командами.
+Тести змінюють дані; роль потребує `CREATEDB` для ізольованих сценаріїв міграцій.
+Приклади нижче використовують лише локальні демонстраційні реквізити dev-контейнера;
+ім'я бази має вказувати на вашу окрему тестову базу.
+
+PowerShell:
+
+```powershell
+$env:LAB_TEST_POSTGRES = '1'
+$env:LAB_TEST_POSTGRES_CONNECTION = 'Host=localhost;Port=55432;Database=lab_readme_tests;Username=lab;Password=lab_dev_password'
+```
+
+Bash:
+
+```bash
+export LAB_TEST_POSTGRES=1
+export LAB_TEST_POSTGRES_CONNECTION='Host=localhost;Port=55432;Database=lab_readme_tests;Username=lab;Password=lab_dev_password'
+```
+
+Для повернення до прогону без PostgreSQL приберіть `LAB_TEST_POSTGRES` зі свого
+середовища (`Remove-Item Env:LAB_TEST_POSTGRES` у PowerShell або `unset LAB_TEST_POSTGRES`
+у Bash). Фактичні пропуски зазначайте у звіті перевірки.
 
 LocalDatabaseServiceTests застосовує спільні міграції SQLite й перевіряє читання
 збереженого Site. SyncQueueStoreTests перевіряє ідемпотентність після повторного
@@ -56,15 +99,21 @@ MigrationFactoryTests перевіряє пріоритет рядків під�
 на обох СУБД. PostgreSQL-сценарій працює в окремій базі `sigma_migration_<UUID>`;
 тестовий користувач має право створювати й видаляти цю базу. Спільна база не відкочується.
 
-CI для коміту `3f4cee5` підтвердив 62 успішні тести без пропусків та 100% покриття
-рядків поточного звіту (домен, контракти, прикладний шар, інфраструктура й обидва набори міграцій).
+Історичний CI коміту `3f4cee5` від 12 жовтня 2026 року підтвердив 62 успішні тести
+без пропусків та 100% рядків тодішнього звіту. Ці числа не описують поточний main
+і не є покриттям MAUI UI. Нові результати звіряйте з конкретним комітом і свіжими XML.
+
+[Звіт незалежної перевірки Z4 від 19.10.2026](verification/CHP1-2026-10-19.md)
+містить коміт, результати нового клону та обмеження середовища.
 
 ## Межі цього етапу
 
-Доменна модель у main зараз має Site. Тому каркас не оголошує Experiment локально;
-список серій буде підключено до моделі Z1 після її злиття. MAUI включено до LabStem.slnx;
+У main є спільні User, Site, Instrument, Experiment, Measurement і ReferenceValue та
+міграції обох СУБД від Z1. MAUI включено до LabStem.slnx у злитому PR #24;
 окремий job maui-build збирає Windows і Android при змінах клієнта або його залежностей.
-Інтеграція CI потребує рев’ю власника Z2.
+Екран зараз показує Site. Екран серій і перевірка запуску на пристроях залишаються
+критеріями #9 для ЧП2. Мережеве відправлення (#14) і розширення воркера (#15) належать ЧП3.
+Успішна компіляція не підтверджує приймання UI, тому весь #9 не закривається.
 
 ## Solution і CI
 

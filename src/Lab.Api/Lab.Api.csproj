@@ -2,14 +2,14 @@
 
   <PropertyGroup>
     <RootNamespace>Lab.Api</RootNamespace>
-    <!-- Ідентифікатор для Secret Manager: локальні секрети (JWT-ключ) зберігаються поза
-         репозиторієм: dotnet user-secrets set "Jwt:Key" "..." -->
+    <!-- Ідентифікатор для локальних секретів, крім JWT-ключа, який задається лише через Jwt__Key. -->
     <UserSecretsId>lab-stem-api</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- Вбудована OpenAPI-документація ASP.NET Core 10 (AddOpenApi/MapOpenApi). -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
   </ItemGroup>
 
   <ItemGroup>

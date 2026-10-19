@@ -69,7 +69,8 @@ if [ -d TestResults ]; then mv TestResults "TestResults.previous-$(date +%Y%m%d-
 dotnet test LabStem.Server.slnf -c Release --collect:"XPlat Code Coverage" --results-directory TestResults
 python3 scripts/coverage-summary.py
 
-# 6. API на SQLite
+# 6. Згенерувати локальний ключ JWT і запустити API на SQLite
+export Jwt__Key="$(openssl rand -base64 32)"
 dotnet run --project src/Lab.Api
 
 # 7. API на PostgreSQL
@@ -157,6 +158,9 @@ dotnet ef database update --project src/Lab.Migrations.Sqlite
 
 `LAB_POSTGRES_CONNECTION` і `LAB_SQLITE_CONNECTION` читають лише фабрики часу проєктування
 (тобто команди `dotnet ef`); застосунок використовує `ConnectionStrings__*`.
+API потребує `Jwt__Key` у змінному середовищі навіть до додавання endpoint-ів входу;
+локально створіть випадкове значення командою `openssl rand -base64 32`. Не додавайте
+його до файлів конфігурації, репозиторію або журналу комітів.
 
 Для PowerShell змінні задаються окремо перед командою:
 
