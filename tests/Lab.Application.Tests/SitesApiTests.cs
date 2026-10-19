@@ -4,6 +4,8 @@ using System.Text.Json;
 using Lab.Api.Security;
 using Lab.Contracts;
 using Lab.Contracts.Sites;
+using Lab.Domain.Sites;
+using Lab.Domain.Users;
 using Lab.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
@@ -79,6 +81,60 @@ public sealed class SitesApiTests
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
     }
 
+    [Fact]
+    public async Task HTTP_чужий_майданчик_404_на_читання_і_403_на_зміну()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var factory = new SitesApiFactory(connection);
+        using var client = factory.CreateClient();
+        ApiTestJwt.Authenticate(client, userId: 1);
+        await InitializeDatabaseAsync(factory);
+
+        int foreignSiteId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<LabDbContext>();
+            var otherUser = new User("Інший власник", "other-owner@example.org");
+            db.Users.Add(otherUser);
+            await db.SaveChangesAsync();
+            var foreignSite = new Site
+            {
+                Name = "Чужий майданчик",
+                Latitude = 50,
+                Longitude = 30,
+                OwnerId = otherUser.Id,
+            };
+            db.Sites.Add(foreignSite);
+            await db.SaveChangesAsync();
+            foreignSiteId = foreignSite.Id;
+        }
+
+        using var hidden = await client.GetAsync($"/api/sites/{foreignSiteId}");
+        using var denied = await client.PutAsJsonAsync(
+            $"/api/sites/{foreignSiteId}",
+            new UpdateSiteRequest { Name = "Змінити", Latitude = 51, Longitude = 31 });
+        using var created = await client.PostAsJsonAsync(
+            "/api/sites",
+            new CreateSiteRequest { Name = "Мій майданчик", Latitude = 50, Longitude = 30 });
+        Assert.Equal(HttpStatusCode.NotFound, hidden.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+
+        var ownSite = await created.Content.ReadFromJsonAsync<SiteDto>();
+        Assert.NotNull(ownSite);
+        using var updated = await client.PutAsJsonAsync(
+            $"/api/sites/{ownSite.Id}",
+            new UpdateSiteRequest { Name = "Оновлений", Latitude = 52, Longitude = 32 });
+        Assert.Equal(HttpStatusCode.NoContent, updated.StatusCode);
+
+        var visible = await client.GetFromJsonAsync<PagedResult<SiteDto>>("/api/sites");
+        Assert.NotNull(visible);
+        var site = Assert.Single(visible.Items);
+        Assert.Equal(ownSite.Id, site.Id);
+        Assert.Equal("Оновлений", site.Name);
+    }
+
     [Theory]
     [InlineData("page=0")]
     [InlineData("page=-1")]
@@ -122,6 +178,8 @@ public sealed class SitesApiTests
 
         Assert.NotNull(document);
         var operation = document.RootElement.GetProperty("paths").GetProperty("/api/sites").GetProperty("get");
+        var updateOperation = document.RootElement.GetProperty("paths")
+            .GetProperty("/api/sites/{id}").GetProperty("put");
         var schemes = document.RootElement.GetProperty("components").GetProperty("securitySchemes");
         var bearer = schemes.GetProperty("Bearer");
         Assert.Equal("http", bearer.GetProperty("type").GetString());
@@ -137,6 +195,8 @@ public sealed class SitesApiTests
 
         var responses = operation.GetProperty("responses");
         Assert.True(responses.TryGetProperty("400", out _));
+        Assert.True(updateOperation.GetProperty("responses").TryGetProperty("403", out _));
+        Assert.True(updateOperation.GetProperty("responses").TryGetProperty("404", out _));
         var schema = responses.GetProperty("200").GetProperty("content").GetProperty("application/json").GetProperty("schema");
         var schemaReference = schema.GetProperty("$ref").GetString();
         Assert.NotNull(schemaReference);
@@ -171,7 +231,13 @@ public sealed class SitesApiTests
     private static async Task InitializeDatabaseAsync(SitesApiFactory factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<LabDbContext>().Database.EnsureCreatedAsync();
+        var db = scope.ServiceProvider.GetRequiredService<LabDbContext>();
+        await db.Database.EnsureCreatedAsync();
+        if (!await db.Users.AnyAsync())
+        {
+            db.Users.Add(new User("API власник", "api-owner@example.org"));
+            await db.SaveChangesAsync();
+        }
     }
 
     [Fact]

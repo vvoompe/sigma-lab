@@ -1,6 +1,8 @@
 using Lab.Application.Sites;
+using Lab.Application.Security;
 using Lab.Contracts.Sites;
 using Lab.Domain.Sites;
+using Lab.Domain.Users;
 using Lab.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -15,9 +17,9 @@ public sealed class SiteQueryTests
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
         await using var db = await CreateContextAsync(connection);
-        db.Sites.AddRange(Enumerable.Range(1, 5).Select(_ => new Site { Name = "Однакова назва" }));
+        db.Sites.AddRange(Enumerable.Range(1, 5).Select(_ => OwnedSite("Однакова назва")));
         await db.SaveChangesAsync();
-        var service = new SiteService(db);
+        var service = CreateService(db);
 
         var first = await service.ListAsync(new SiteQuery { PageSize = 2 });
         var second = await service.ListAsync(new SiteQuery { Page = 2, PageSize = 2 });
@@ -42,10 +44,10 @@ public sealed class SiteQueryTests
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
         await using var db = await CreateContextAsync(connection);
-        db.Sites.AddRange(Enumerable.Range(1, 101).Select(_ => new Site { Name = "Майданчик" }));
+        db.Sites.AddRange(Enumerable.Range(1, 101).Select(_ => OwnedSite("Майданчик")));
         await db.SaveChangesAsync();
 
-        var result = await new SiteService(db).ListAsync(new SiteQuery { PageSize = pageSize });
+        var result = await CreateService(db).ListAsync(new SiteQuery { PageSize = pageSize });
 
         Assert.Equal(101, result.TotalCount);
         Assert.Equal(Math.Min(pageSize, 100), result.Items.Count);
@@ -60,10 +62,10 @@ public sealed class SiteQueryTests
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
         await using var db = await CreateContextAsync(connection);
-        db.Sites.Add(new Site { Name = "Майданчик" });
+        db.Sites.Add(OwnedSite("Майданчик"));
         await db.SaveChangesAsync();
 
-        var result = await new SiteService(db).ListAsync(new SiteQuery { Page = page, PageSize = 100 });
+        var result = await CreateService(db).ListAsync(new SiteQuery { Page = page, PageSize = 100 });
 
         Assert.Empty(result.Items);
         Assert.Equal(1, result.TotalCount);
@@ -77,16 +79,16 @@ public sealed class SiteQueryTests
         await connection.OpenAsync();
         await using var db = await CreateContextAsync(connection);
         db.Sites.AddRange(
-            new Site { Name = "Ліс край", Latitude = 50, Longitude = 30 },
-            new Site { Name = "Ліс центр", Latitude = 51, Longitude = 31 },
-            new Site { Name = "Ліс далеко", Latitude = 52, Longitude = 31 },
-            new Site { Name = "Ліс захід", Latitude = 50, Longitude = 29 },
-            new Site { Name = "Ліс схід", Latitude = 50, Longitude = 32 },
-            new Site { Name = "Ліс південь", Latitude = 49, Longitude = 30 },
-            new Site { Name = "Поле", Latitude = 50, Longitude = 30 });
+            OwnedSite("Ліс край", 50, 30),
+            OwnedSite("Ліс центр", 51, 31),
+            OwnedSite("Ліс далеко", 52, 31),
+            OwnedSite("Ліс захід", 50, 29),
+            OwnedSite("Ліс схід", 50, 32),
+            OwnedSite("Ліс південь", 49, 30),
+            OwnedSite("Поле", 50, 30));
         await db.SaveChangesAsync();
 
-        var result = await new SiteService(db).ListAsync(new SiteQuery
+        var result = await CreateService(db).ListAsync(new SiteQuery
         {
             Name = "  Ліс  ", MinLatitude = 50, MaxLatitude = 51,
             MinLongitude = 30, MaxLongitude = 31, Page = 2, PageSize = 1,
@@ -106,10 +108,10 @@ public sealed class SiteQueryTests
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
         await using var db = await CreateContextAsync(connection);
-        db.Sites.AddRange(new Site { Name = "Ліс %_" }, new Site { Name = "Інший ліс" });
+        db.Sites.AddRange(OwnedSite("Ліс %_"), OwnedSite("Інший ліс"));
         await db.SaveChangesAsync();
 
-        var result = await new SiteService(db).ListAsync(new SiteQuery { Name = name });
+        var result = await CreateService(db).ListAsync(new SiteQuery { Name = name });
 
         Assert.Equal(expected, result.TotalCount);
         Assert.Equal(expected, result.Items.Count);
@@ -122,7 +124,7 @@ public sealed class SiteQueryTests
         await connection.OpenAsync();
         await using var db = await CreateContextAsync(connection);
 
-        var result = await new SiteService(db).ListAsync(new SiteQuery());
+        var result = await CreateService(db).ListAsync(new SiteQuery());
 
         Assert.Empty(result.Items);
         Assert.Equal(0, result.TotalCount);
@@ -138,7 +140,7 @@ public sealed class SiteQueryTests
         await connection.OpenAsync();
         await using var db = await CreateContextAsync(connection);
 
-        await Assert.ThrowsAsync<ArgumentException>(() => new SiteService(db).ListAsync(query));
+        await Assert.ThrowsAsync<ArgumentException>(() => CreateService(db).ListAsync(query));
     }
 
     public static TheoryData<SiteQuery> InvalidQueries => new()
@@ -157,6 +159,26 @@ public sealed class SiteQueryTests
     {
         var db = new LabDbContext(new DbContextOptionsBuilder<LabDbContext>().UseSqlite(connection).Options);
         await db.Database.EnsureCreatedAsync();
+        db.Users.Add(new User("Власник", "owner@example.org"));
+        await db.SaveChangesAsync();
         return db;
+    }
+
+    private static SiteService CreateService(LabDbContext db) => new(db, new TestCurrentUser(1));
+
+    private static Site OwnedSite(string name, double latitude = 0, double longitude = 0) =>
+        new()
+        {
+            Name = name,
+            Latitude = latitude,
+            Longitude = longitude,
+            OwnerId = 1,
+        };
+
+    private sealed class TestCurrentUser(int id) : ICurrentUser
+    {
+        public int? Id { get; } = id;
+
+        public string? Role => "Researcher";
     }
 }

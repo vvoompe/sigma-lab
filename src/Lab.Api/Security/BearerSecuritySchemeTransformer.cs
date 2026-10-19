@@ -27,6 +27,20 @@ public sealed class BearerSecuritySchemeTransformer : IOpenApiDocumentTransforme
             [new OpenApiSecuritySchemeReference("Bearer", document)] = [],
         });
 
+        foreach (var (path, pathItem) in document.Paths)
+        {
+            if (!path.StartsWith("/api/auth/", StringComparison.Ordinal)
+                || pathItem.Operations is not { } operations)
+            {
+                continue;
+            }
+
+            foreach (var operation in operations.Values)
+            {
+                operation.Security = [];
+            }
+        }
+
         return Task.CompletedTask;
     }
 }
