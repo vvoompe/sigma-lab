@@ -59,7 +59,9 @@ public sealed class SitesController(ISiteService sites) : ControllerBase
         {
             SiteUpdateStatus.Updated => NoContent(),
             SiteUpdateStatus.NotFound => NotFound(),
-            SiteUpdateStatus.Forbidden => Forbid(),
+            SiteUpdateStatus.Forbidden => Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Немає прав на зміну майданчика."),
             _ => throw new InvalidOperationException("Невідомий результат оновлення майданчика."),
         };
     }
