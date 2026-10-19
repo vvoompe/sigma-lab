@@ -18,53 +18,68 @@ from __future__ import annotations
 
 import glob
 import os
+import posixpath
 import sys
 import xml.etree.ElementTree as ElementTree
 
 RESULTS_DIR = "TestResults"
 BACKSLASH = chr(92)
-CORE_PREFIXES = ("Lab.Domain/", "Lab.Application/", "Lab.Infrastructure/")
+CORE_ASSEMBLIES = frozenset(("Lab.Domain", "Lab.Application", "Lab.Infrastructure"))
 THRESHOLD_PERCENT = 80.0
-ASSEMBLIES = (
-    ("Lab.Domain", "Lab.Domain/"),
-    ("Lab.Contracts", "Lab.Contracts/"),
-    ("Lab.Infrastructure", "Lab.Infrastructure/"),
-    ("Lab.Application", "Lab.Application/"),
-    ("Lab.Api", "Lab.Api/"),
-    ("Lab.Worker", "Lab.Worker/"),
-    ("Lab.Migrations.Sqlite", "Lab.Migrations.Sqlite/"),
-    ("Lab.Migrations.Postgres", "Lab.Migrations.Postgres/"),
-)
+LineHits = dict[tuple[str, str, int], int]
 
 
-def collect_hits() -> tuple[dict[tuple[str, int], int], int]:
+def canonical_path(file_name: str, assembly: str, sources: list[str]) -> str:
+    """Шлях усередині assembly; підтримує формати filename у звітах Coverlet."""
+    path = posixpath.normpath(file_name.replace(BACKSLASH, "/"))
+    # Абсолютний filename може починатися з каталогу source самого проєкту.
+    for source in sorted(sources, key=len, reverse=True):
+        prefix = posixpath.normpath(source.replace(BACKSLASH, "/")).rstrip("/") + "/"
+        if path.startswith(prefix):
+            path = path[len(prefix):]
+            break
+    parts = path.split("/")
+    if assembly in parts:
+        path = "/".join(parts[parts.index(assembly) + 1:])
+    return path
+
+
+def collect_hits() -> tuple[LineHits, int]:
     """Зливає рядки з усіх звітів покриття."""
-    hits: dict[tuple[str, int], int] = {}
+    hits: LineHits = {}
     reports = sorted(glob.glob(os.path.join(RESULTS_DIR, "**", "coverage.cobertura.xml"), recursive=True))
     for report in reports:
         root = ElementTree.parse(report).getroot()
-        for cls in root.iter("class"):
-            file_name = (cls.get("filename") or "").replace(BACKSLASH, "/")
-            if not file_name:
-                continue
-            for line in cls.iter("line"):
-                number = line.get("number")
-                if not number:
-                    continue
-                key = (file_name, int(number))
-                value = int(line.get("hits") or 0)
-                # Рядок із нульовим покриттям теж треба внести, інакше він не потрапить
-                # у знаменник і покриття завжди виглядатиме як 100 %.
-                if key not in hits or value > hits[key]:
-                    hits[key] = value
+        sources = [source.text for source in root.findall("./sources/source") if source.text]
+        classes_seen = 0
+        for package in root.findall("./packages/package"):
+            assembly = package.get("name")
+            if not assembly:
+                raise ValueError(f"{report}: package без назви assembly")
+            for cls in package.findall("./classes/class"):
+                classes_seen += 1
+                file_name = cls.get("filename")
+                if not file_name:
+                    raise ValueError(f"{report}: class без filename")
+                path = canonical_path(file_name, assembly, sources)
+                for line in cls.iter("line"):
+                    number = int(line.get("number") or 0)
+                    value = int(line.get("hits") or 0)
+                    if number <= 0 or value < 0:
+                        raise ValueError(f"{report}: некоректний номер рядка або hits")
+                    key = (assembly, path, number)
+                    # Нульові hits теж залишаються у знаменнику.
+                    hits[key] = max(hits.get(key, 0), value)
+        if classes_seen != sum(1 for _ in root.iter("class")):
+            raise ValueError(f"{report}: class поза packages/package/classes; assembly невідома")
     return hits, len(reports)
 
 
-def ratio(hits: dict[tuple[str, int], int], prefixes: tuple[str, ...]) -> tuple[int, int]:
-    """(покриті, усього) для рядків, чий шлях починається з одного з префіксів."""
+def ratio(hits: LineHits, assemblies: frozenset[str] | None = None) -> tuple[int, int]:
+    """(покриті, усього) для точних назв assemblies або всього solution."""
     total = covered = 0
-    for (file_name, _), value in hits.items():
-        if any(prefix in file_name for prefix in prefixes):
+    for (assembly, _, _), value in hits.items():
+        if assemblies is None or assembly in assemblies:
             total += 1
             covered += 1 if value > 0 else 0
     return covered, total
@@ -75,22 +90,26 @@ def main() -> int:
         print(f"! теку {RESULTS_DIR} не знайдено - спершу прогнати dotnet test з --collect")
         return 1
 
-    hits, report_count = collect_hits()
+    try:
+        hits, report_count = collect_hits()
+    except (ValueError, ElementTree.ParseError) as error:
+        print(f"! Некоректний звіт покриття: {error}")
+        return 1
     if not hits:
         print(f"! у теці {RESULTS_DIR} немає звітів coverage.cobertura.xml")
         return 1
 
     lines: list[str] = [f"Звітів злито: {report_count}", "", "Покриття по збірках:"]
-    for name, prefix in ASSEMBLIES:
-        covered, total = ratio(hits, (prefix,))
+    for name in sorted({assembly for assembly, _, _ in hits}):
+        covered, total = ratio(hits, frozenset((name,)))
         if total:
             lines.append(f"  {name}: {covered}/{total} = {covered / total * 100:.2f} %")
 
-    covered, total = ratio(hits, ("",))
+    covered, total = ratio(hits)
     solution_percent = covered / total * 100 if total else 0.0
     lines.append(f"  РАЗОМ solution: {covered}/{total} = {solution_percent:.2f} %")
 
-    core_covered, core_total = ratio(hits, CORE_PREFIXES)
+    core_covered, core_total = ratio(hits, CORE_ASSEMBLIES)
     core_percent = core_covered / core_total * 100 if core_total else 0.0
     lines.append("")
     lines.append(

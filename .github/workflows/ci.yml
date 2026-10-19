@@ -93,8 +93,8 @@ jobs:
       - name: Тести з покриттям
         run: dotnet test LabStem.Server.slnf --no-build -c Release --collect:"XPlat Code Coverage" --results-directory TestResults
 
-      - name: Перевірити поріг покриття на граничних сценаріях
-        run: python3 -m unittest discover -s scripts -p "test_coverage_summary.py" -v
+      - name: Перевірити покриття та CI gate на граничних сценаріях
+        run: python3 -m unittest discover -s scripts -p "test_*.py" -v
 
       - name: Злити й показати покриття
         run: python3 scripts/coverage-summary.py
@@ -176,3 +176,15 @@ jobs:
       - name: Android Release
         shell: pwsh
         run: dotnet build src/Lab.Client.Maui/Lab.Client.Maui.csproj -c Release -f net10.0-android "-p:AndroidSdkDirectory=$env:ANDROID_HOME" "-p:JavaSdkDirectory=$env:JAVA_HOME_21_X64"
+
+  ci-gate:
+    # always потрібний, щоб невдалий або пропущений dependency не пропустив сам gate.
+    if: ${{ always() }}
+    needs: [changes, build-and-test, server-sdk-compatibility, maui-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Перевірити результати всіх обов'язкових jobs
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: python3 scripts/ci-gate.py
