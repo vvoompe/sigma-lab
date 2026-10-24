@@ -114,6 +114,24 @@ Student t (`lower`, `upper`, `confidenceLevel`), `outlierMeasurementIds` та
 query/body не впливає на розрахунок. Регресійне ядро Z1 не змінено; HTTP-регресія,
 підпис серії, редагування/видалення окремого виміру та sync не додані в #6.
 
+## Еталони
+
+| Метод | Шлях | Доступ |
+|---|---|---|
+| GET | `/api/reference-values` | будь-який автентифікований |
+| GET | `/api/reference-values/{id}` | будь-який автентифікований |
+| POST | `/api/reference-values` | лише `Administrator` |
+| PUT | `/api/reference-values/{id}` | лише `Administrator` |
+| DELETE | `/api/reference-values/{id}` | лише `Administrator` |
+
+Поля: `name` (до 100), `unit` (до 32), `value` (скінченне число), `absoluteTolerance`
+(скінченне, `>= 0`). Схема БД не змінювалась - таблиця `reference_values` створена
+міграцією `DomainModel`, а серії посилаються на неї зовнішнім ключем.
+
+`DELETE` використаного еталона відхиляється: `FK experiment.ReferenceValueId` має
+політику `Restrict`, тому сервіс повертає **409**, а не приховує помилку.
+Порівняння з еталоном у статистиці вимагає збігу одиниць еталона й приладу.
+
 ## Відтворення перевірки
 
 ```powershell
