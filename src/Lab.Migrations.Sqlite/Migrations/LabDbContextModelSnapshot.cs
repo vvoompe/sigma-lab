@@ -277,6 +277,9 @@ namespace Lab.Migrations.Sqlite.Migrations
                     b.Property<double>("Longitude")
                         .HasColumnType("REAL");
 
+                    b.Property<int?>("ManagerId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -286,6 +289,8 @@ namespace Lab.Migrations.Sqlite.Migrations
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ManagerId");
 
                     b.HasIndex("Name");
 
@@ -402,6 +407,11 @@ namespace Lab.Migrations.Sqlite.Migrations
 
             modelBuilder.Entity("Lab.Domain.Sites.Site", b =>
                 {
+                    b.HasOne("Lab.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("ManagerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Lab.Domain.Users.User", null)
                         .WithMany()
                         .HasForeignKey("OwnerId")

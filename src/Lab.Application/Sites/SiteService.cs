@@ -1,8 +1,11 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using Lab.Application.Abstractions;
 using Lab.Application.Security;
 using Lab.Contracts;
 using Lab.Contracts.Sites;
+using Lab.Domain.Audit;
+using Lab.Domain.Security;
 using Lab.Domain.Sites;
 using Microsoft.EntityFrameworkCore;
 
@@ -68,7 +71,7 @@ public sealed class SiteService(IAppDbContext db, ICurrentUser currentUser) : IS
             .ThenBy(site => site.Id)
             .Skip((int)offset)
             .Take(pageSize)
-            .Select(site => new SiteDto(site.Id, site.Name, site.Latitude, site.Longitude, site.CreatedAt))
+            .Select(site => new SiteDto(site.Id, site.Name, site.Latitude, site.Longitude, site.CreatedAt, site.ManagerId))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<SiteDto>(sites, totalCount, query.Page, pageSize);
@@ -81,7 +84,7 @@ public sealed class SiteService(IAppDbContext db, ICurrentUser currentUser) : IS
         var site = await db.Sites
             .AsNoTracking()
             .Where(item => item.Id == id && item.OwnerId == ownerId)
-            .Select(item => new SiteDto(item.Id, item.Name, item.Latitude, item.Longitude, item.CreatedAt))
+            .Select(item => new SiteDto(item.Id, item.Name, item.Latitude, item.Longitude, item.CreatedAt, item.ManagerId))
             .FirstOrDefaultAsync(cancellationToken);
 
         return site;
@@ -105,7 +108,7 @@ public sealed class SiteService(IAppDbContext db, ICurrentUser currentUser) : IS
         db.Sites.Add(site);
         await db.SaveChangesAsync(cancellationToken);
 
-        return new SiteDto(site.Id, site.Name, site.Latitude, site.Longitude, site.CreatedAt);
+        return new SiteDto(site.Id, site.Name, site.Latitude, site.Longitude, site.CreatedAt, site.ManagerId);
     }
 
     /// <inheritdoc />
@@ -138,6 +141,68 @@ public sealed class SiteService(IAppDbContext db, ICurrentUser currentUser) : IS
         await db.SaveChangesAsync(cancellationToken);
 
         return SiteUpdateStatus.Updated;
+    }
+
+    /// <inheritdoc />
+    public async Task<SiteManagerAssignmentStatus> AssignManagerAsync(
+        int id,
+        AssignSiteManagerRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var actorId = RequireCurrentUserId();
+        if (!string.Equals(currentUser.Role, nameof(UserRole.Administrator), StringComparison.Ordinal))
+        {
+            return SiteManagerAssignmentStatus.Forbidden;
+        }
+
+        if (request.ManagerId is not { } managerId)
+        {
+            throw new ArgumentException("Для призначення потрібен ідентифікатор керівника.", nameof(request));
+        }
+
+        var site = await db.Sites.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (site is null)
+        {
+            return SiteManagerAssignmentStatus.SiteNotFound;
+        }
+
+        // Роль живе в облікових даних, тому домен її не перевіряє - робимо це тут.
+        var credential = await db.UserCredentials
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.UserId == managerId, cancellationToken);
+        if (credential is null)
+        {
+            return SiteManagerAssignmentStatus.ManagerNotFound;
+        }
+
+        if (credential.Role != UserRole.LabManager)
+        {
+            return SiteManagerAssignmentStatus.ManagerRoleMissing;
+        }
+
+        var previousManagerId = site.ManagerId;
+        if (!site.AssignManager(managerId))
+        {
+            // Той самий керівник уже закріплений: не пишемо ні змін, ні аудиту.
+            return SiteManagerAssignmentStatus.Assigned;
+        }
+
+        var details = string.Format(
+            CultureInfo.InvariantCulture,
+            "managerId={0}; previous={1}",
+            managerId,
+            previousManagerId?.ToString(CultureInfo.InvariantCulture) ?? "none");
+        db.AuditEntries.Add(new AuditEntry(
+            actorId,
+            previousManagerId is null ? "site.manager_assigned" : "site.manager_changed",
+            "Site",
+            site.Id,
+            DateTime.UtcNow,
+            details));
+        await db.SaveChangesAsync(cancellationToken);
+
+        return SiteManagerAssignmentStatus.Assigned;
     }
 
     private int RequireCurrentUserId() =>
