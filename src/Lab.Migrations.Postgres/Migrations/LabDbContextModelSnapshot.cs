@@ -294,6 +294,9 @@ namespace Lab.Migrations.Postgres.Migrations
                     b.Property<double>("Longitude")
                         .HasColumnType("double precision");
 
+                    b.Property<int?>("ManagerId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -303,6 +306,8 @@ namespace Lab.Migrations.Postgres.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ManagerId");
 
                     b.HasIndex("Name");
 
@@ -421,6 +426,11 @@ namespace Lab.Migrations.Postgres.Migrations
 
             modelBuilder.Entity("Lab.Domain.Sites.Site", b =>
                 {
+                    b.HasOne("Lab.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("ManagerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Lab.Domain.Users.User", null)
                         .WithMany()
                         .HasForeignKey("OwnerId")

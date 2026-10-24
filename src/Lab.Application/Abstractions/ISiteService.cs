@@ -16,6 +16,25 @@ public enum SiteUpdateStatus
     Forbidden,
 }
 
+/// <summary>Результат призначення керівника лабораторії на майданчик.</summary>
+public enum SiteManagerAssignmentStatus
+{
+    /// <summary>Призначення збережене (або вже було таким самим).</summary>
+    Assigned,
+
+    /// <summary>Майданчик не знайдено.</summary>
+    SiteNotFound,
+
+    /// <summary>Дію дозволено лише адміністратору.</summary>
+    Forbidden,
+
+    /// <summary>Користувача з таким ідентифікатором не знайдено.</summary>
+    ManagerNotFound,
+
+    /// <summary>Користувач існує, але не має ролі <c>LabManager</c>.</summary>
+    ManagerRoleMissing,
+}
+
 /// <summary>Операції над майданчиками (зона Z1 розширює цей сервіс своїми сценаріями).</summary>
 public interface ISiteService
 {
@@ -32,5 +51,14 @@ public interface ISiteService
     Task<SiteUpdateStatus> UpdateAsync(
         int id,
         UpdateSiteRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Закріплює керівника лабораторії за майданчиком. Дозволено лише адміністратору,
+    /// цільовий користувач повинен мати роль <c>LabManager</c>; зміна пишеться в аудит.
+    /// </summary>
+    Task<SiteManagerAssignmentStatus> AssignManagerAsync(
+        int id,
+        AssignSiteManagerRequest request,
         CancellationToken cancellationToken = default);
 }

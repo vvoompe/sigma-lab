@@ -42,6 +42,33 @@ public sealed class Site
     /// <summary>Старий ідентифікатор до появи User; не є підтвердженим власником.</summary>
     public int LegacyOwnerId { get; private set; }
 
+    /// <summary>
+    /// Ідентифікатор керівника лабораторії, закріпленого за майданчиком.
+    /// Відрізняється від <see cref="OwnerId"/>: власник - автор майданчика, менеджер - той,
+    /// кому доручено вести серії на цьому майданчику.
+    /// </summary>
+    public int? ManagerId { get; private set; }
+
+    /// <summary>
+    /// Закріплює керівника лабораторії за майданчиком.
+    /// Повертає <c>true</c>, якщо призначення змінилось, і <c>false</c>, якщо той самий
+    /// користувач уже закріплений - щоб не писати зайвий запис аудиту.
+    /// </summary>
+    /// <remarks>
+    /// Роль запрошеного перевіряє прикладний шар: домен не знає про облікові дані.
+    /// </remarks>
+    public bool AssignManager(int managerId)
+    {
+        Validation.DomainRules.PositiveId(managerId, nameof(managerId));
+        if (ManagerId == managerId)
+        {
+            return false;
+        }
+
+        ManagerId = managerId;
+        return true;
+    }
+
     /// <summary>Момент створення запису в UTC.</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
