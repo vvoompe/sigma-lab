@@ -162,6 +162,30 @@ public sealed class SiteManagerApiTests
         Assert.Equal(DeleteBehavior.Restrict, foreignKey.DeleteBehavior);
     }
 
+    [Fact]
+    public async Task Паралельні_однакові_призначення_пишуть_один_аудит()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var factory = new ManagerApiFactory(connection);
+        var seed = await InitializeAsync(factory);
+        using var client = factory.CreateClient();
+        ApiTestJwt.Authenticate(client, role: "Administrator", userId: seed.AdminId);
+        var body = new AssignSiteManagerRequest(seed.ManagerId);
+
+        var first = client.PutAsJsonAsync($"/api/sites/{seed.SiteId}/manager", body);
+        var second = client.PutAsJsonAsync($"/api/sites/{seed.SiteId}/manager", body);
+        var responses = await Task.WhenAll(first, second);
+
+        Assert.All(responses, response =>
+            Assert.True(response.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.Conflict,
+                $"неочікуваний код {response.StatusCode}"));
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<LabDbContext>();
+        Assert.Equal(1, await db.AuditEntries.CountAsync(item => item.TargetType == "Site"));
+        Assert.Equal(seed.ManagerId, (await db.Sites.SingleAsync(item => item.Id == seed.SiteId)).ManagerId);
+    }
+
     private static async Task<SeedIds> InitializeAsync(ManagerApiFactory factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();

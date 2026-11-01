@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using Lab.Application.Abstractions;
+using Lab.Application.Resources;
 using Lab.Application.Security;
 using Lab.Contracts;
 using Lab.Contracts.Sites;
@@ -161,7 +162,7 @@ public sealed class SiteService(IAppDbContext db, ICurrentUser currentUser) : IS
             throw new ArgumentException("Для призначення потрібен ідентифікатор керівника.", nameof(request));
         }
 
-        var site = await db.Sites.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        var site = await db.Sites.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (site is null)
         {
             return SiteManagerAssignmentStatus.SiteNotFound;
@@ -182,10 +183,36 @@ public sealed class SiteService(IAppDbContext db, ICurrentUser currentUser) : IS
         }
 
         var previousManagerId = site.ManagerId;
-        if (!site.AssignManager(managerId))
+        if (previousManagerId == managerId)
         {
             // Той самий керівник уже закріплений: не пишемо ні змін, ні аудиту.
             return SiteManagerAssignmentStatus.Assigned;
+        }
+
+        // Порівняння початкового значення в самому UPDATE: два паралельні запити не
+        // можуть обидва записати аудит для одного призначення.
+        await using var transaction = await db.BeginTransactionAsync(cancellationToken);
+        var target = db.Sites.Where(item => item.Id == site.Id);
+        target = previousManagerId is null
+            ? target.Where(item => item.ManagerId == null)
+            : target.Where(item => item.ManagerId == previousManagerId);
+        var affected = await target.ExecuteUpdateAsync(
+            setters => setters.SetProperty(item => item.ManagerId, (int?)managerId), cancellationToken);
+
+        if (affected == 0)
+        {
+            // Хтось уже змінив призначення: або до того самого менеджера (ідемпотентно),
+            // або до іншого - тоді це конфлікт, а не тиха перезапис.
+            var current = await db.Sites
+                .Where(item => item.Id == site.Id)
+                .Select(item => item.ManagerId)
+                .SingleAsync(cancellationToken);
+            if (current == managerId)
+            {
+                return SiteManagerAssignmentStatus.Assigned;
+            }
+
+            throw ResourceValidation.Conflict("Призначення керівника змінено паралельним запитом; перечитайте майданчик.");
         }
 
         var details = string.Format(
@@ -201,6 +228,7 @@ public sealed class SiteService(IAppDbContext db, ICurrentUser currentUser) : IS
             DateTime.UtcNow,
             details));
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return SiteManagerAssignmentStatus.Assigned;
     }
