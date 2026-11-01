@@ -165,28 +165,42 @@ public sealed class SiteManagerApiTests
     [Fact]
     public async Task Паралельні_однакові_призначення_пишуть_один_аудит()
     {
-        await using var connection = new SqliteConnection("Data Source=:memory:");
-        await connection.OpenAsync();
-        await using var factory = new ManagerApiFactory(connection);
-        var seed = await InitializeAsync(factory);
-        using var client = factory.CreateClient();
-        ApiTestJwt.Authenticate(client, role: "Administrator", userId: seed.AdminId);
-        var body = new AssignSiteManagerRequest(seed.ManagerId);
+        // Файлова база: кожен HTTP-запит відкриває власне з'єднання, як у проді.
+        // Спільне in-memory з'єднання не витримує двох одночасних транзакцій і дає
+        // штучну помилку, якої в реальному запуску немає.
+        var path = Path.Combine(Path.GetTempPath(), $"mgr-race-{Guid.NewGuid():N}.db");
+        try
+        {
+            await using var factory = new ManagerFileApiFactory($"Data Source={path}");
+            var seed = await InitializeAsync(factory);
+            using var client = factory.CreateClient();
+            ApiTestJwt.Authenticate(client, role: "Administrator", userId: seed.AdminId);
+            var body = new AssignSiteManagerRequest(seed.ManagerId);
 
-        var first = client.PutAsJsonAsync($"/api/sites/{seed.SiteId}/manager", body);
-        var second = client.PutAsJsonAsync($"/api/sites/{seed.SiteId}/manager", body);
-        var responses = await Task.WhenAll(first, second);
+            var first = client.PutAsJsonAsync($"/api/sites/{seed.SiteId}/manager", body);
+            var second = client.PutAsJsonAsync($"/api/sites/{seed.SiteId}/manager", body);
+            var responses = await Task.WhenAll(first, second);
 
-        Assert.All(responses, response =>
-            Assert.True(response.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.Conflict,
-                $"неочікуваний код {response.StatusCode}"));
-        await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<LabDbContext>();
-        Assert.Equal(1, await db.AuditEntries.CountAsync(item => item.TargetType == "Site"));
-        Assert.Equal(seed.ManagerId, (await db.Sites.SingleAsync(item => item.Id == seed.SiteId)).ManagerId);
+            Assert.All(responses, response =>
+                Assert.True(response.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.Conflict,
+                    $"неочікуваний код {response.StatusCode}"));
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<LabDbContext>();
+            Assert.Equal(1, await db.AuditEntries.CountAsync(item => item.TargetType == "Site"));
+            Assert.Equal(seed.ManagerId, (await db.Sites.SingleAsync(item => item.Id == seed.SiteId)).ManagerId);
+        }
+        finally
+        {
+            // SqliteConnection тримає файл у пулі навіть після Dispose.
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
     }
 
-    private static async Task<SeedIds> InitializeAsync(ManagerApiFactory factory)
+    private static async Task<SeedIds> InitializeAsync(WebApplicationFactory<Program> factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<LabDbContext>();
@@ -225,7 +239,9 @@ public sealed class SiteManagerApiTests
     {
         static ManagerApiFactory() => ApiTestJwt.EnsureConfigured();
 
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        protected override void ConfigureWebHost(IWebHostBuilder builder) => Configure(builder, options => options.UseSqlite(connection));
+
+        internal static void Configure(IWebHostBuilder builder, Action<DbContextOptionsBuilder> useProvider)
         {
             builder.UseSetting("Database:MigrateOnStartup", "false");
             builder.ConfigureServices(services =>
@@ -233,8 +249,17 @@ public sealed class SiteManagerApiTests
                 services.RemoveAll<DbContextOptions<LabDbContext>>();
                 services.RemoveAll<IDbContextOptionsConfiguration<LabDbContext>>();
                 services.RemoveAll<LabDbContext>();
-                services.AddDbContext<LabDbContext>(options => options.UseSqlite(connection));
+                services.AddDbContext<LabDbContext>(useProvider);
             });
         }
+    }
+
+    /// <summary>Фабрика на файлову базу: кожен запит має власне з'єднання.</summary>
+    private sealed class ManagerFileApiFactory(string connectionString) : WebApplicationFactory<Program>
+    {
+        static ManagerFileApiFactory() => ApiTestJwt.EnsureConfigured();
+
+        protected override void ConfigureWebHost(IWebHostBuilder builder) =>
+            ManagerApiFactory.Configure(builder, options => options.UseSqlite(connectionString));
     }
 }
