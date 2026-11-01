@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Lab.Contracts;
 using Lab.Contracts.ReferenceValues;
 using Lab.Domain.Experiments;
 using Lab.Domain.Instruments;
@@ -47,7 +48,7 @@ public sealed class ReferenceValueApiTests
 
         using var list = await client.GetAsync("/api/reference-values");
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
-        Assert.Single(await list.Content.ReadFromJsonAsync<List<ReferenceValueDto>>() ?? []);
+        Assert.Single((await list.Content.ReadFromJsonAsync<PagedResult<ReferenceValueDto>>())!.Items);
 
         using var deleted = await client.DeleteAsync($"/api/reference-values/{dto.Id}");
         Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
@@ -133,6 +134,70 @@ public sealed class ReferenceValueApiTests
         using var deleted = await client.DeleteAsync($"/api/reference-values/{dto!.Id}");
 
         Assert.Equal(HttpStatusCode.Conflict, deleted.StatusCode);
+    }
+
+[Fact]
+    public async Task Сторінка_обмежує_розмір_і_порожня_далека_сторінка()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var factory = new ReferenceApiFactory(connection);
+        await SeedAsync(factory);
+        using var client = factory.CreateClient();
+        ApiTestJwt.Authenticate(client, role: "Administrator", userId: await AdminIdAsync(factory));
+
+        for (var index = 0; index < 3; index++)
+        {
+            using var created = await client.PostAsJsonAsync(
+                "/api/reference-values", new { name = $"Еталон {index}", unit = "C", value = index, absoluteTolerance = 0.1 });
+            Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        }
+
+        var clamped = await client.GetFromJsonAsync<PagedResult<ReferenceValueDto>>("/api/reference-values?pageSize=1000");
+        Assert.NotNull(clamped);
+        Assert.Equal(ResourcePageQuery.MaxPageSize, clamped.PageSize);
+
+        var far = await client.GetFromJsonAsync<PagedResult<ReferenceValueDto>>("/api/reference-values?page=99");
+        Assert.NotNull(far);
+        Assert.Empty(far.Items);
+        Assert.Equal(3, far.TotalCount);
+    }
+
+    [Fact]
+    public async Task Одиницю_використаного_еталона_змінити_не_можна()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var factory = new ReferenceApiFactory(connection);
+        var ids = await SeedAsync(factory);
+        using var client = factory.CreateClient();
+        ApiTestJwt.Authenticate(client, role: "Administrator", userId: ids.AdminId);
+
+        using var created = await client.PostAsJsonAsync(
+            "/api/reference-values", new { name = "Еталон", unit = "C", value = 12, absoluteTolerance = 0.5 });
+        var dto = await created.Content.ReadFromJsonAsync<ReferenceValueDto>();
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<LabDbContext>();
+            var instrument = new Instrument(ids.ResearcherId, "Термометр", "REF-UNIT-1", "C", -10, 50, 0.1);
+            db.Instruments.Add(instrument);
+            var site = new Site { Name = "Майданчик", Latitude = 50, Longitude = 30, OwnerId = ids.ResearcherId };
+            db.Sites.Add(site);
+            await db.SaveChangesAsync();
+            var reference = await db.ReferenceValues.SingleAsync(item => item.Id == dto!.Id);
+            db.Experiments.Add(new Experiment(site.Id, ids.ResearcherId, "Серія", instrument, reference));
+            await db.SaveChangesAsync();
+        }
+
+        using var changedUnit = await client.PutAsJsonAsync(
+            $"/api/reference-values/{dto!.Id}", new { name = "Еталон", unit = "F", value = 53.6, absoluteTolerance = 0.5 });
+
+        Assert.Equal(HttpStatusCode.Conflict, changedUnit.StatusCode);
+
+        using var sameUnit = await client.PutAsJsonAsync(
+            $"/api/reference-values/{dto.Id}", new { name = "Еталон 2", unit = "C", value = 12.5, absoluteTolerance = 0.4 });
+        Assert.Equal(HttpStatusCode.OK, sameUnit.StatusCode);
     }
 
     private sealed record Ids(int AdminId, int ResearcherId);

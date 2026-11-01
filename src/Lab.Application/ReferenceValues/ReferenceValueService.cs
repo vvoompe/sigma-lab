@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using Lab.Application.Abstractions;
 using Lab.Application.Resources;
 using Lab.Application.Security;
+using Lab.Contracts;
 using Lab.Contracts.ReferenceValues;
 using Lab.Domain.ReferenceValues;
 using Lab.Domain.Security;
@@ -16,15 +17,41 @@ namespace Lab.Application.ReferenceValues;
 public sealed class ReferenceValueService(IAppDbContext db, ICurrentUser currentUser) : IReferenceValueService
 {
     /// <inheritdoc />
-    public async Task<IReadOnlyList<ReferenceValueDto>> ListAsync(CancellationToken cancellationToken = default)
+    public async Task<PagedResult<ReferenceValueDto>> ListAsync(
+        ResourcePageQuery query, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(query);
         _ = ResourceValidation.UserId(currentUser);
-        return await db.ReferenceValues
-            .AsNoTracking()
+        var results = new List<ValidationResult>();
+        if (!Validator.TryValidateObject(query, new ValidationContext(query), results, validateAllProperties: true))
+        {
+            throw new ArgumentException(string.Join(" ", results.Select(result => result.ErrorMessage)), nameof(query));
+        }
+
+        var filtered = db.ReferenceValues.AsNoTracking();
+        var name = query.Name?.Trim();
+        if (!string.IsNullOrEmpty(name))
+        {
+            filtered = filtered.Where(item => item.Name.Contains(name));
+        }
+
+        var totalCount = await filtered.CountAsync(cancellationToken);
+        var pageSize = Math.Min(query.PageSize, ResourcePageQuery.MaxPageSize);
+        var offset = (query.Page - 1L) * pageSize;
+        if (offset >= totalCount)
+        {
+            return new PagedResult<ReferenceValueDto>([], totalCount, query.Page, pageSize);
+        }
+
+        var items = await filtered
             .OrderBy(item => item.Name)
             .ThenBy(item => item.Id)
+            .Skip((int)offset)
+            .Take(pageSize)
             .Select(item => new ReferenceValueDto(item.Id, item.Name, item.Unit, item.Value, item.AbsoluteTolerance))
             .ToListAsync(cancellationToken);
+
+        return new PagedResult<ReferenceValueDto>(items, totalCount, query.Page, pageSize);
     }
 
     /// <inheritdoc />
@@ -61,6 +88,15 @@ public sealed class ReferenceValueService(IAppDbContext db, ICurrentUser current
 
         var item = await db.ReferenceValues.SingleOrDefaultAsync(value => value.Id == id, cancellationToken)
             ?? throw ResourceValidation.Missing();
+
+        // Одиниця еталона зашита в уже створені серії: конструктор Experiment перевіряв
+        // збіг лише під час створення, тому зміна одиниці зламала б статистику старої серії.
+        if (!string.Equals(item.Unit.Trim(), request.Unit.Trim(), StringComparison.Ordinal)
+            && await db.Experiments.AnyAsync(experiment => experiment.ReferenceValueId == id, cancellationToken))
+        {
+            throw ResourceValidation.Conflict("Одиницю еталона, який використовується в серіях, змінювати не можна.");
+        }
+
         item.Update(request.Name, request.Unit, request.Value!.Value, request.AbsoluteTolerance!.Value);
         await db.SaveChangesAsync(cancellationToken);
         return new ReferenceValueDto(item.Id, item.Name, item.Unit, item.Value, item.AbsoluteTolerance);
@@ -79,8 +115,13 @@ public sealed class ReferenceValueService(IAppDbContext db, ICurrentUser current
         }
         catch (DbUpdateException)
         {
-            // FK experiment.ReferenceValueId налаштований з Restrict: еталон у серіях не видаляємо.
-            throw ResourceValidation.Conflict("Еталон використовується в серіях вимірювань.");
+            // 409 лише для підтвердженого конфлікту FK: інші збої запису не маскуємо.
+            if (await db.Experiments.AnyAsync(experiment => experiment.ReferenceValueId == id, cancellationToken))
+            {
+                throw ResourceValidation.Conflict("Еталон використовується в серіях вимірювань.");
+            }
+
+            throw;
         }
     }
 

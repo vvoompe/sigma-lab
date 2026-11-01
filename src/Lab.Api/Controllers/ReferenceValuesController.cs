@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Lab.Application.Abstractions;
+using Lab.Contracts;
 using Lab.Contracts.ReferenceValues;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,11 +16,12 @@ namespace Lab.Api.Controllers;
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
 public sealed class ReferenceValuesController(IReferenceValueService values) : ControllerBase
 {
-    /// <summary>Повертає всі еталони, відсортовані за назвою.</summary>
+    /// <summary>Повертає сторінку еталонів, відсортовану за назвою.</summary>
     [HttpGet]
-    [ProducesResponseType<IReadOnlyList<ReferenceValueDto>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<ReferenceValueDto>>> ListAsync(CancellationToken cancellationToken) =>
-        Ok(await values.ListAsync(cancellationToken));
+    [ProducesResponseType<PagedResult<ReferenceValueDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResult<ReferenceValueDto>>> ListAsync(
+        [FromQuery] ResourcePageQuery query, CancellationToken cancellationToken) =>
+        Ok(await values.ListAsync(query, cancellationToken));
 
     /// <summary>Повертає еталон за ідентифікатором.</summary>
     [HttpGet("{id:int}", Name = "GetReferenceValueById")]
