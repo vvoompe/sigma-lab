@@ -1,3 +1,4 @@
+using Lab.Application.Security;
 using Lab.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,6 +20,22 @@ public static partial class DatabaseStartup
 
         var applied = (await db.Database.GetAppliedMigrationsAsync()).Count();
         LogMigrationApplied(logger, applied, db.Database.ProviderName ?? "невідомий провайдер");
+    }
+
+    public static async Task SeedInitialAdministratorAsync(
+        IServiceProvider services,
+        IConfiguration configuration,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        await using var scope = services.CreateAsyncScope();
+        var seeder = scope.ServiceProvider.GetRequiredService<IInitialAdministratorSeeder>();
+        await seeder.SeedAsync(
+            configuration["Seed:AdminEmail"],
+            configuration["Seed:AdminPassword"],
+            cancellationToken);
     }
 
     [LoggerMessage(

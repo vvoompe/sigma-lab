@@ -9,6 +9,7 @@ public interface IExperimentService
     Task<ExperimentDto> GetAsync(int id, CancellationToken cancellationToken = default);
     Task<ExperimentDto> CreateAsync(CreateExperimentRequest request, CancellationToken cancellationToken = default);
     Task<ExperimentDto> RenameAsync(int id, RenameExperimentRequest request, CancellationToken cancellationToken = default);
+    Task<ExperimentDto> SignAsync(int id, SignExperimentRequest request, CancellationToken cancellationToken = default);
     Task DeleteAsync(int id, long expectedVersion, CancellationToken cancellationToken = default);
     Task<MeasurementMutationDto> AddMeasurementAsync(int id, AddMeasurementRequest request, CancellationToken cancellationToken = default);
     Task<MeasurementDto> GetMeasurementAsync(int id, int measurementId, CancellationToken cancellationToken = default);
