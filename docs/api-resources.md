@@ -19,6 +19,7 @@ OpenAPI: `GET /openapi/v1.json`. Усі наведені операції пот
 | POST `/api/experiments` | `CreateExperimentRequest` | 201, DTO + Location |
 | PUT `/api/experiments/{id}` | `{"name":"Нова назва","expectedVersion":1}` | 200, DTO з новою Version |
 | DELETE `/api/experiments/{id}` | `?expectedVersion=1` | 204, атомарний аудит видалення |
+| POST `/api/experiments/{id}/sign` | `{"expectedVersion":1}` | 200, серверний підпис і аудит |
 | POST `/api/experiments/{id}/measurements` | `AddMeasurementRequest` | 201, `{measurement, experimentVersion}` + Location |
 | GET `/api/experiments/{id}/measurements` | `page`, `pageSize` | 200, сторінка `MeasurementDto` |
 | GET `/api/experiments/{id}/measurements/{measurementId}` | — | 200, `MeasurementDto` |
@@ -67,11 +68,17 @@ Researcher створює серію зі своїм майданчиком і �
 ## Доступ, конфлікти та атомарність
 
 Прилади змінює тільки Administrator. Він читає всі прилади; інші автентифіковані
-користувачі бачать лише свої. Серії створює й змінює Researcher; читання серій,
-їхніх вимірів і статистики обмежено власником до підрахунку/пагінації.
-Читання чужої серії — 404, спроба її зміни — 403. Administrator не отримує
-прихованого обходу власності серій. Доступ LabManager до чужих серій залежить
-від майбутнього призначення на Site у Z3/Z1 і тут не відкривається.
+користувачі бачать лише свої. Серії створює Researcher; Researcher змінює лише власні
+чернетки, а LabManager може підписати доступну серію, але не редагувати її дані.
+LabManager читає власні серії та серії майданчиків, де він призначений через
+`Site.ManagerId`; фільтр застосовується до SQL-запиту до підрахунку/пагінації.
+Читання недоступної серії — 404, спроба зміни — 403. Administrator має
+адміністративний доступ до читання, але не обходить правила підпису.
+
+Підпис приймає лише `expectedVersion`; `SignedById` і `SignedAt` не довіряються
+клієнту. Сервіс бере actor із перевіреного JWT, час — `DateTime.UtcNow`, викликає
+доменний `Experiment.Sign` і створює `AuditEntry` з `experiment.signed` в одному
+`SaveChangesAsync`. Стара версія або повторний підпис повертають 409.
 
 Кожна мутація наявної серії потребує додатної `expectedVersion`. Застаріла версія,
 підписана серія або конфлікт EF concurrency повертає 409. Зміни навіть різних
