@@ -144,6 +144,73 @@ public sealed class ResourceApiTests : IAsyncLifetime, IAsyncDisposable
     }
 
     [Fact]
+    public async Task Assigned_lab_manager_can_read_and_sign_site_experiment()
+    {
+        var item = await fixture.CreateExperimentAsync();
+        await using (var db = fixture.CreateContext())
+        {
+            var site = await db.Sites.SingleAsync(value => value.Id == fixture.SiteId);
+            Assert.True(site.AssignManager(fixture.OtherId));
+            await db.SaveChangesAsync();
+        }
+
+        fixture.Authenticate("LabManager", fixture.OtherId);
+        var page = await Client.GetFromJsonAsync<PagedResult<ExperimentDto>>("/api/experiments");
+        Assert.NotNull(page);
+        Assert.Single(page.Items);
+        var read = await Client.GetFromJsonAsync<ExperimentDto>($"/api/experiments/{item.Id}");
+        Assert.Equal(item.Id, read?.Id);
+
+        using var response = await Client.PostAsJsonAsync($"/api/experiments/{item.Id}/sign", new { expectedVersion = 1 });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var signed = await response.Content.ReadFromJsonAsync<ExperimentDto>();
+        Assert.NotNull(signed);
+        Assert.Equal("SignedOff", signed.Status);
+        Assert.Equal(fixture.OtherId, signed.SignedById);
+
+        await using var stored = fixture.CreateContext();
+        var audit = await stored.AuditEntries.SingleAsync();
+        Assert.Equal("experiment.signed", audit.Action);
+        Assert.Equal(fixture.OtherId, audit.ActorId);
+        Assert.Equal(item.Id, audit.TargetId);
+    }
+
+    [Fact]
+    public async Task Researcher_owner_cannot_sign_own_experiment()
+    {
+        var item = await fixture.CreateExperimentAsync();
+        await AssertProblemAsync(
+            await Client.PostAsJsonAsync($"/api/experiments/{item.Id}/sign", new { expectedVersion = item.Version }),
+            HttpStatusCode.Forbidden);
+
+        await using var db = fixture.CreateContext();
+        var stored = await db.Experiments.SingleAsync(value => value.Id == item.Id);
+        Assert.Equal(ExperimentStatus.Draft, stored.Status);
+        Assert.Equal(item.Version, stored.Version);
+        Assert.Empty(await db.AuditEntries.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Lab_manager_owner_cannot_mutate_experiment()
+    {
+        var item = await fixture.CreateExperimentAsync();
+        fixture.Authenticate("LabManager");
+        await AssertProblemAsync(
+            await Client.PutAsJsonAsync($"/api/experiments/{item.Id}", new { name = "x", expectedVersion = item.Version }),
+            HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Lab_manager_on_another_site_cannot_sign_experiment()
+    {
+        var item = await fixture.CreateExperimentAsync();
+        fixture.Authenticate("LabManager", fixture.OtherId);
+        await AssertProblemAsync(
+            await Client.PostAsJsonAsync($"/api/experiments/{item.Id}/sign", new { expectedVersion = 1 }),
+            HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task Creating_with_foreign_instrument_or_site_is_404()
     {
         await using (var db = fixture.CreateContext())
@@ -369,7 +436,8 @@ public sealed class ResourceApiTests : IAsyncLifetime, IAsyncDisposable
             ("CreateInstrumentRequest", ["ownerId", "minValue", "maxValue", "absoluteError", "name", "serialNumber", "unit"]),
             ("CreateExperimentRequest", ["name", "siteId", "instrumentId"]),
             ("AddMeasurementRequest", ["clientId", "value", "measuredAt", "expectedVersion"]),
-            ("RenameExperimentRequest", ["name", "expectedVersion"]) })
+            ("RenameExperimentRequest", ["name", "expectedVersion"]),
+            ("SignExperimentRequest", ["expectedVersion"]) })
         {
             var required = schemas.GetProperty(schema).GetProperty("required").EnumerateArray().Select(x => x.GetString()).ToArray();
             foreach (var field in fields) Assert.Contains(field, required);

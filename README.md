@@ -155,6 +155,9 @@ python scripts/coverage-summary.py
 
 ```powershell
 $env:LAB_DB_PROVIDER = 'Sqlite'
+$env:Jwt__Key = [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+$env:Seed__AdminEmail = 'admin@example.org'
+$env:Seed__AdminPassword = 'Correct-Horse-123'
 dotnet run --project src/Lab.Api
 $env:LAB_DB_PROVIDER = 'Postgres'
 $env:ConnectionStrings__Postgres = 'Host=localhost;Port=55432;Database=lab;Username=lab;Password=lab_dev_password'
@@ -207,7 +210,9 @@ dotnet ef database update --project src/Lab.Migrations.Sqlite
 `LAB_POSTGRES_CONNECTION` і `LAB_SQLITE_CONNECTION` читають лише фабрики часу проєктування
 (тобто команди `dotnet ef`); застосунок використовує `ConnectionStrings__*`.
 API потребує `Jwt__Key` у змінному середовищі; локально створіть випадкове значення
-командою `openssl rand -base64 32`. Не додавайте його до файлів конфігурації,
+командою `openssl rand -base64 32`. Для чистої бази можна одноразово задати
+`Seed__AdminEmail` і `Seed__AdminPassword` (12–128 символів): під час старту буде
+створено першого Administrator, якщо адміністраторів ще немає. Не додавайте секрети до файлів конфігурації,
 репозиторію або журналу комітів. `POST /api/auth/register` створює дослідника й
 видає токен, `POST /api/auth/login` видає токен після перевірки пароля; пароль має
 містити 12–128 символів. Токен чинний 30 хвилин. Роль змінює лише Administrator

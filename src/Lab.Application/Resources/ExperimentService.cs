@@ -11,13 +11,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Lab.Application.Resources;
 
-public sealed class ExperimentService(IAppDbContext db, ICurrentUser currentUser) : IExperimentService
+public sealed class ExperimentService(
+    IAppDbContext db,
+    ICurrentUser currentUser,
+    IExperimentAccessService access) : IExperimentService
 {
     public async Task<PagedResult<ExperimentDto>> ListAsync(ExperimentQuery query, CancellationToken cancellationToken = default)
     {
         ResourceValidation.Validate(query);
-        var owner = ResourceValidation.UserId(currentUser);
-        var items = db.Experiments.AsNoTracking().Where(item => item.OwnerId == owner);
+        var items = access.ApplyReadFilter(db.Experiments.AsNoTracking());
         if (query.SiteId is { } site) items = items.Where(item => item.SiteId == site);
         if (query.Status is { Length: > 0 } status)
         {
@@ -73,6 +75,30 @@ public sealed class ExperimentService(IAppDbContext db, ICurrentUser currentUser
         ResourceValidation.Validate(request);
         var experiment = await MutableAsync(id, ResourceValidation.RequiredValue(request.ExpectedVersion), cancellationToken);
         experiment.Rename(request.Name);
+        await db.SaveChangesAsync(cancellationToken);
+        return ToDto(experiment);
+    }
+
+    public async Task<ExperimentDto> SignAsync(
+        int id,
+        SignExperimentRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ResourceValidation.Validate(request);
+        var expectedVersion = ResourceValidation.RequiredValue(request.ExpectedVersion);
+        var experiment = await db.Experiments.Include(item => item.Instrument)
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
+            ?? throw ResourceValidation.Missing();
+        await access.EnsureCanAsync(experiment, ExperimentAccessOperation.Sign, cancellationToken);
+        if (experiment.Status != ExperimentStatus.Draft)
+            throw ResourceValidation.Conflict("Підписану серію не можна підписати повторно.");
+        if (experiment.Version != expectedVersion)
+            throw ResourceValidation.Conflict("Версія серії застаріла; перечитайте ресурс.");
+
+        var signedAt = DateTime.UtcNow;
+        experiment.Sign(ResourceValidation.UserId(currentUser), signedAt);
+        db.AuditEntries.Add(new AuditEntry(
+            ResourceValidation.UserId(currentUser), "experiment.signed", "Experiment", id, signedAt));
         await db.SaveChangesAsync(cancellationToken);
         return ToDto(experiment);
     }
@@ -136,11 +162,10 @@ public sealed class ExperimentService(IAppDbContext db, ICurrentUser currentUser
     public async Task<ExperimentStatisticsDto> StatisticsAsync(int id, StatisticsQuery query, CancellationToken cancellationToken = default)
     {
         ResourceValidation.Validate(query);
-        var owner = ResourceValidation.UserId(currentUser);
         // Один SQL-запит читає версію та виміри одного стану, без змішаного snapshot.
-        var experiment = await db.Experiments.AsNoTracking().Include(item => item.Instrument)
+        var experiment = await access.ApplyReadFilter(db.Experiments.AsNoTracking()).Include(item => item.Instrument)
             .Include(item => item.ReferenceValue).Include(item => item.Measurements).AsSingleQuery()
-            .SingleOrDefaultAsync(item => item.Id == id && item.OwnerId == owner, cancellationToken)
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
             ?? throw ResourceValidation.Missing();
         var measurements = experiment.Measurements.OrderBy(item => item.Id).ToArray();
         var values = measurements.Select(item => item.Value).ToArray();
@@ -166,20 +191,17 @@ public sealed class ExperimentService(IAppDbContext db, ICurrentUser currentUser
 
     private async Task<Experiment> ReadAsync(int id, CancellationToken cancellationToken)
     {
-        var owner = ResourceValidation.UserId(currentUser);
-        return await db.Experiments.AsNoTracking().Include(item => item.Instrument)
-            .SingleOrDefaultAsync(item => item.Id == id && item.OwnerId == owner, cancellationToken)
+        return await access.ApplyReadFilter(db.Experiments.AsNoTracking()).Include(item => item.Instrument)
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
             ?? throw ResourceValidation.Missing();
     }
 
     private async Task<Experiment> MutableAsync(int id, long expectedVersion, CancellationToken cancellationToken)
     {
-        ResourceValidation.RequireRole(currentUser, nameof(UserRole.Researcher));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(expectedVersion);
         var experiment = await db.Experiments.Include(item => item.Instrument)
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken) ?? throw ResourceValidation.Missing();
-        if (experiment.OwnerId != ResourceValidation.UserId(currentUser))
-            throw new ResourceException(ResourceErrorKind.Forbidden, "Немає прав на зміну серії.");
+        await access.EnsureCanAsync(experiment, ExperimentAccessOperation.Mutate, cancellationToken);
         if (experiment.Status != ExperimentStatus.Draft)
             throw ResourceValidation.Conflict("Підписану серію не можна змінювати.");
         if (experiment.Version != expectedVersion)

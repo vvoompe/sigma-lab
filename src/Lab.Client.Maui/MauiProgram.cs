@@ -1,6 +1,5 @@
-using Lab.Client.Maui.Data;
-using Lab.Client.Maui.Sync;
-using Lab.Infrastructure.DependencyInjection;
+using Lab.Client.Maui.Services;
+using Lab.Client.Maui.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -19,14 +18,13 @@ public static class MauiProgram
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
             });
 
-        var databasePath = Path.Combine(FileSystem.AppDataDirectory, "lab.sqlite3");
-        builder.Configuration["Database:Provider"] = "Sqlite";
-        builder.Configuration["ConnectionStrings:Sqlite"] = $"Data Source={databasePath}";
-
-        builder.Services.AddLabInfrastructure(builder.Configuration);
-        builder.Services.AddSingleton<LocalDatabaseService>();
-        builder.Services.AddSingleton(_ => new SyncQueueStore(
-            Path.Combine(FileSystem.AppDataDirectory, "sync-queue.json")));
+        builder.Services.AddSingleton(_ => new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+        {
+            Timeout = TimeSpan.FromSeconds(30),
+        });
+        builder.Services.AddSingleton<IClientSessionStore, SecureClientSessionStore>();
+        builder.Services.AddSingleton(provider => new LaboratoryViewModel(
+            provider.GetRequiredService<HttpClient>(), provider.GetRequiredService<IClientSessionStore>(), FileSystem.AppDataDirectory));
         builder.Services.AddTransient<MainPage>();
 
 #if DEBUG
