@@ -65,4 +65,32 @@ public sealed class SitesController(ISiteService sites) : ControllerBase
             _ => throw new InvalidOperationException("Невідомий результат оновлення майданчика."),
         };
     }
+
+    /// <summary>Закріплює керівника лабораторії за майданчиком (лише адміністратор).</summary>
+    [HttpPut("{id:int}/manager")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> AssignManagerAsync(
+        int id,
+        [FromBody] AssignSiteManagerRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sites.AssignManagerAsync(id, request, cancellationToken);
+        return result switch
+        {
+            SiteManagerAssignmentStatus.Assigned => NoContent(),
+            SiteManagerAssignmentStatus.SiteNotFound => NotFound(),
+            SiteManagerAssignmentStatus.ManagerNotFound => NotFound(),
+            SiteManagerAssignmentStatus.Forbidden => Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Призначати керівника може лише адміністратор."),
+            SiteManagerAssignmentStatus.ManagerRoleMissing => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Користувач не має ролі LabManager."),
+            _ => throw new InvalidOperationException("Невідомий результат призначення керівника."),
+        };
+    }
 }
