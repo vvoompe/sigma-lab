@@ -40,15 +40,21 @@ public sealed class ExperimentAccessService(IAppDbContext db, ICurrentUser curre
             return;
         }
 
-        if (operation == ExperimentAccessOperation.Sign &&
-            currentUser.Role == nameof(UserRole.LabManager) &&
-            await db.Sites.AnyAsync(
-                site => site.Id == experiment.SiteId && site.ManagerId == userId,
-                cancellationToken))
+        if (operation == ExperimentAccessOperation.Sign)
         {
-            return;
+            if (currentUser.Role == nameof(UserRole.Researcher))
+                throw new ResourceException(ResourceErrorKind.Forbidden, 
+                    "Дослідник не може підписувати серії. Потрібна роль LabManager.");
+
+            if (currentUser.Role == nameof(UserRole.LabManager) &&
+                await db.Sites.AnyAsync(
+                    site => site.Id == experiment.SiteId && site.ManagerId == userId,
+                    cancellationToken))
+            {
+                return;
+            }
         }
 
-        throw new ResourceException(ResourceErrorKind.Forbidden, "Немає прав на зміну серії.");
+        throw new ResourceException(ResourceErrorKind.Forbidden, "Немає прав на цю операцію.");
     }
 }
