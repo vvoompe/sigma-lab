@@ -75,7 +75,8 @@ internal sealed partial class UnhandledExceptionHandler(ILogger<UnhandledExcepti
             // достатньо коду й типу; сам виняток і його стек у журнал не передаємо.
             if (logger.IsEnabled(LogLevel.Information))
             {
-                LogRejected(logger, status, exception.GetType().Name);
+                var exceptionType = exception.GetType().Name;
+                LogRejected(logger, status, exceptionType);
             }
         }
 
