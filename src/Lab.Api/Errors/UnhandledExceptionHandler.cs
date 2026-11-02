@@ -73,7 +73,10 @@ internal sealed partial class UnhandledExceptionHandler(ILogger<UnhandledExcepti
         {
             // Повідомлення винятку може містити вхідні дані. Для очікуваної відмови
             // достатньо коду й типу; сам виняток і його стек у журнал не передаємо.
-            LogRejected(logger, status, exception.GetType().Name);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                LogRejected(logger, status, exception.GetType().Name);
+            }
         }
 
         httpContext.Response.StatusCode = status;
