@@ -26,6 +26,9 @@ public sealed class SiteConfiguration : IEntityTypeConfiguration<Site>
         builder.Property(site => site.Longitude).IsRequired();
         // Старі записи залишаються без підтвердженого власника, без фіктивних User.
         builder.HasOne<Lab.Domain.Users.User>().WithMany().HasForeignKey(site => site.OwnerId).OnDelete(DeleteBehavior.Restrict);
+        // Керівник лабораторії: окреме поле, не переплутати з автором майданчика.
+        builder.HasOne<Lab.Domain.Users.User>().WithMany().HasForeignKey(site => site.ManagerId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(site => site.ManagerId);
         builder.Property(site => site.CreatedAt)
             .HasConversion(value => value, value => DateTime.SpecifyKind(value, DateTimeKind.Utc))
             .IsRequired();

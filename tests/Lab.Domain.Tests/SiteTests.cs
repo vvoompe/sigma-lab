@@ -87,4 +87,53 @@ public sealed class SiteTests
         Assert.Equal(3, site.OwnerId);
         Assert.Equal(createdAt, site.CreatedAt);
     }
+
+    [Fact]
+    public void Новий_майданчик_не_має_призначеного_менеджера() =>
+        Assert.Null(new Site { Name = "Лісова ділянка" }.ManagerId);
+
+    [Fact]
+    public void Призначення_менеджера_змінює_стан_і_повертає_ознаку_зміни()
+    {
+        var site = new Site { Name = "Лісова ділянка" };
+
+        var changed = site.AssignManager(12);
+
+        Assert.True(changed);
+        Assert.Equal(12, site.ManagerId);
+    }
+
+    [Fact]
+    public void Повторне_призначення_того_самого_менеджера_не_є_зміною()
+    {
+        var site = new Site { Name = "Лісова ділянка" };
+        site.AssignManager(12);
+
+        var changed = site.AssignManager(12);
+
+        Assert.False(changed);
+        Assert.Equal(12, site.ManagerId);
+    }
+
+    [Fact]
+    public void Призначення_менеджера_не_змінює_власника()
+    {
+        var site = new Site { Name = "Лісова ділянка", OwnerId = 3 };
+
+        site.AssignManager(12);
+
+        Assert.Equal(3, site.OwnerId);
+        Assert.Equal(12, site.ManagerId);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    public void Неприпустимий_ідентифікатор_менеджера_відхиляється(int managerId)
+    {
+        var site = new Site { Name = "Лісова ділянка" };
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => site.AssignManager(managerId));
+        Assert.Null(site.ManagerId);
+    }
 }

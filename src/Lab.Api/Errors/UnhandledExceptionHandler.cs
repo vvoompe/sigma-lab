@@ -48,7 +48,9 @@ internal sealed partial class UnhandledExceptionHandler(ILogger<UnhandledExcepti
             ArgumentException argumentException => (
                 StatusCodes.Status400BadRequest,
                 "Некоректні дані запиту.",
-                argumentException.Message),
+                argumentException.ParamName is null
+                    ? argumentException.Message
+                    : "Перевірте значення полів запиту."),
             KeyNotFoundException keyNotFoundException => (
                 StatusCodes.Status404NotFound,
                 "Ресурс не знайдено.",
@@ -59,7 +61,24 @@ internal sealed partial class UnhandledExceptionHandler(ILogger<UnhandledExcepti
                 (string?)null),
         };
 
-        LogUnhandled(logger, status, exception);
+        if (status >= StatusCodes.Status500InternalServerError)
+        {
+            // Невідома серверна помилка не розкриває внутрішній текст навіть тоді,
+            // коли її тип схожий на очікувану прикладну відмову.
+            title = "Внутрішня помилка сервера.";
+            detail = null;
+            LogUnhandled(logger, status, exception);
+        }
+        else
+        {
+            // Повідомлення винятку може містити вхідні дані. Для очікуваної відмови
+            // достатньо коду й типу; сам виняток і його стек у журнал не передаємо.
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                var exceptionType = exception.GetType().Name;
+                LogRejected(logger, status, exceptionType);
+            }
+        }
 
         httpContext.Response.StatusCode = status;
         await httpContext.Response.WriteAsJsonAsync(
@@ -81,4 +100,10 @@ internal sealed partial class UnhandledExceptionHandler(ILogger<UnhandledExcepti
         Level = LogLevel.Error,
         Message = "Необроблений виняток, код відповіді {Status}")]
     private static partial void LogUnhandled(ILogger logger, int status, Exception exception);
+
+    [LoggerMessage(
+        EventId = 2001,
+        Level = LogLevel.Information,
+        Message = "Запит відхилено, код відповіді {Status}, тип {ExceptionType}")]
+    private static partial void LogRejected(ILogger logger, int status, string exceptionType);
 }
