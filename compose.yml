@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: lab
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: ${LAB_PG_PASSWORD:?Задайте LAB_PG_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab -d lab"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      LAB_DB_PROVIDER: Postgres
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=lab;Username=lab;Password=${LAB_PG_PASSWORD:?Задайте LAB_PG_PASSWORD}
+      Database__MigrateOnStartup: "true"
+      Jwt__Key: ${Jwt__Key:?Задайте Jwt__Key щонайменше 32 байти}
+      # Bootstrap реалізує Z3 у #47; після його merge можна задати ці змінні.
+      Seed__AdminEmail: ${Seed__AdminEmail:-}
+      Seed__AdminPassword: ${Seed__AdminPassword:-}
+    ports:
+      - "127.0.0.1:${LAB_API_PORT:-5080}:8080"
+    restart: unless-stopped
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  postgres-data:
