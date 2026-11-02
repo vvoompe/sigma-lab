@@ -7,6 +7,7 @@ using Lab.Contracts.Experiments;
 using Lab.Contracts.Instruments;
 using Lab.Contracts.Security;
 using Lab.Contracts.Sites;
+using Lab.Contracts.Sync;
 
 namespace Lab.Client.Maui.Services;
 
@@ -37,6 +38,22 @@ public sealed class LabApiClient(HttpClient http, Uri server, string? token = nu
     public Task<ExperimentDto> ExperimentAsync(int id, CancellationToken cancellationToken = default) =>
         SendAsync<ExperimentDto>(HttpMethod.Get, $"api/experiments/{id}", null, cancellationToken);
 
+    public Task<ExperimentContextDto> ExperimentContextAsync(int id, CancellationToken cancellationToken = default) =>
+        SendAsync<ExperimentContextDto>(HttpMethod.Get, $"api/experiments/{id}/context", null, cancellationToken);
+
+    public async Task<MeasurementSyncBatchResult> SynchronizeBatchAsync(
+        IReadOnlyList<MeasurementSyncRequest?> items, CancellationToken cancellationToken = default)
+    {
+        var result = await SendAsync<MeasurementSyncBatchResult>(HttpMethod.Post, "api/sync/measurements",
+            new MeasurementSyncBatchRequest { Items = items }, cancellationToken, HttpStatusCode.MultiStatus).ConfigureAwait(false);
+        if (result.Items is null) throw new InvalidDataException("API не повернув елементи звіту синхронізації.");
+        return result;
+    }
+
+    public Task<MeasurementSyncResult> SynchronizeSingleAsync(
+        MeasurementSyncRequest item, CancellationToken cancellationToken = default) =>
+        SendAsync<MeasurementSyncResult>(HttpMethod.Post, "api/sync/measurements/single", item, cancellationToken, singleSync: true);
+
     public Task<ExperimentDto> CreateExperimentAsync(CreateExperimentRequest request, CancellationToken cancellationToken = default) =>
         SendAsync<ExperimentDto>(HttpMethod.Post, "api/experiments", request, cancellationToken);
 
@@ -58,7 +75,8 @@ public sealed class LabApiClient(HttpClient http, Uri server, string? token = nu
         }
     }
 
-    private async Task<T> SendAsync<T>(HttpMethod method, string path, object? body, CancellationToken cancellationToken)
+    private async Task<T> SendAsync<T>(HttpMethod method, string path, object? body, CancellationToken cancellationToken,
+        HttpStatusCode? expectedStatus = null, bool singleSync = false)
     {
         using var request = new HttpRequestMessage(method, new Uri(server, path));
         if (body is not null) request.Content = JsonContent.Create(body);
@@ -78,6 +96,10 @@ public sealed class LabApiClient(HttpClient http, Uri server, string? token = nu
             catch (JsonException) { /* Не-JSON відповідь проксі: залишаємо HTTP-статус. */ }
             throw new ClientApiException(response.StatusCode, message);
         }
+        if (expectedStatus is { } expected && response.StatusCode != expected)
+            throw new InvalidDataException("API повернув неочікуваний статус пакетної синхронізації.");
+        if (singleSync && response.StatusCode is not (HttpStatusCode.OK or HttpStatusCode.Created))
+            throw new InvalidDataException("API повернув неочікуваний статус одиничної синхронізації.");
         return await response.Content.ReadFromJsonAsync<T>(cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidDataException("API повернув порожню відповідь.");
     }

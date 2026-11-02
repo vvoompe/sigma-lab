@@ -114,3 +114,15 @@ Administrator під час старту API. Якщо адміністрато�
 результатами. Перевірки: MeasurementSyncApiTests (HTTP, SQLite та PostgreSQL).
 Повне виконання кейсів офлайн-клієнта потребує review й підключення транспорту Z4;
 сам серверний PR не закриває umbrella #14.
+
+### Інтеграція Z4 після review, #14 / #53
+
+Клієнт підключено до single/batch #49. MeasurementSynchronizerTests перевіряє
+один реальний за формою 50-item запит, HTTP 207, partial failure, втрату відповіді,
+порядок/повноту UUID та відповідність payload; помилка не стає Sent.
+ClientApiIntegrationTests виконує синхронізацію через TestServer; PostgreSQL
+перевіряє повтор після втрати single-відповіді й усього пакета з 50 записів.
+ManagerContextIntegrationTests перевіряє дозволений контекст, справжнього
+власника/еталон, офлайн-кеш та заборону мутацій менеджером на SQLite/PostgreSQL.
+Позначки приймання залежать від CI фінального head та незалежного review,
+а наскрізний Windows/Android показ залишається окремою runtime-перевіркою.

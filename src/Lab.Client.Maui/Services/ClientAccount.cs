@@ -9,8 +9,9 @@ using Lab.Infrastructure.Configuration;
 namespace Lab.Client.Maui.Services;
 
 /// <summary>Ізоляція кешу за сервером та користувачем; токен зберігається платформою окремо.</summary>
-public sealed record ClientAccount(string Server, int UserId, string Name, string Email, string Token, DateTime ExpiresAtUtc)
+public sealed record ClientAccount(string Server, int UserId, string Name, string Email, string Token, DateTime ExpiresAtUtc, string Role = "")
 {
+    public bool CanWrite => Role == "Researcher";
     public static Uri ValidateServer(string address)
     {
         if (!Uri.TryCreate(address.TrimEnd('/') + "/", UriKind.Absolute, out var uri)
@@ -27,7 +28,7 @@ public sealed record ClientAccount(string Server, int UserId, string Name, strin
     }
 
     public static ClientAccount FromToken(Uri server, string email, AccessTokenResponse response) =>
-        new(server.AbsoluteUri, response.UserId, response.Name, email, response.AccessToken, response.ExpiresAtUtc);
+        new(server.AbsoluteUri, response.UserId, response.Name, email, response.AccessToken, response.ExpiresAtUtc, response.Role);
 
     public ServiceProvider OpenServices(string root)
     {

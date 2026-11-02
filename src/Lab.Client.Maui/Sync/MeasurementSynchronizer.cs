@@ -2,17 +2,15 @@ using System.Globalization;
 using System.Net;
 using System.Text.Json;
 using Lab.Client.Maui.Services;
-using Lab.Contracts.Experiments;
+using Lab.Contracts.Sync;
 
 namespace Lab.Client.Maui.Sync;
 
-/// <summary>Дані команди; це не копія доменної моделі виміру.</summary>
+/// <summary>Команда черги, не копія доменної моделі виміру.</summary>
 public sealed record PendingMeasurement(int ExperimentId, Guid ClientId, double Value, DateTime MeasuredAt, long ExpectedVersion);
-
-/// <summary>Звіт клієнта. HTTP 207 належить серверному пакетному endpoint Z2.</summary>
 public sealed record SynchronizationReport(int Sent, int Failed, int Pending);
 
-/// <summary>Послідовне відправлення через наявний API з перевіркою повторів і версій.</summary>
+/// <summary>Пакети до 50 команд; підтвердження перевіряється для кожного елемента.</summary>
 public sealed class MeasurementSynchronizer(SyncQueueStore queue, LabApiClient api)
 {
     private static readonly SemaphoreSlim Gate = new(1, 1);
@@ -25,7 +23,6 @@ public sealed class MeasurementSynchronizer(SyncQueueStore queue, LabApiClient a
         if (item.ClientId == Guid.Empty || item.ExperimentId <= 0 || item.ExpectedVersion <= 0
             || !double.IsFinite(item.Value) || item.MeasuredAt.Kind != DateTimeKind.Utc)
             throw new ArgumentException("Некоректна офлайн-операція.", nameof(item));
-        // PostgreSQL зберігає мікросекунди, DateTime — 100 нс. Канонізуємо до першої відправки.
         item = item with { MeasuredAt = new DateTime(item.MeasuredAt.Ticks - item.MeasuredAt.Ticks % 10, DateTimeKind.Utc) };
         return queue.EnqueueAsync("Measurement", item.ExperimentId.ToString(CultureInfo.InvariantCulture),
             JsonSerializer.Serialize(item, JsonOptions), item.ClientId, cancellationToken);
@@ -36,73 +33,118 @@ public sealed class MeasurementSynchronizer(SyncQueueStore queue, LabApiClient a
         await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var blocked = new HashSet<int>();
             var items = await queue.GetAllAsync(cancellationToken).ConfigureAwait(false);
-            foreach (var operation in items.Where(item => item.Status != SyncQueueStatus.Sent))
+            var commands = items.Where(item => item.Status != SyncQueueStatus.Sent).Select(item =>
+                (Operation: item, Command: JsonSerializer.Deserialize<PendingMeasurement>(item.Payload, JsonOptions)
+                    ?? throw new InvalidDataException("Пошкоджено команду виміру."))).ToArray();
+            var blocked = commands.Where(item => item.Operation.Status == SyncQueueStatus.Failed)
+                .Select(item => item.Command.ExperimentId).ToHashSet();
+            var pending = commands.Where(item => item.Operation.Status == SyncQueueStatus.Pending).ToList();
+            var checkedSeries = new HashSet<int>();
+            var stop = false;
+            while (pending.Count > 0)
             {
-                var item = JsonSerializer.Deserialize<PendingMeasurement>(operation.Payload, JsonOptions)
-                    ?? throw new InvalidDataException("Пошкоджено команду виміру.");
-                if (operation.Status == SyncQueueStatus.Failed || blocked.Contains(item.ExperimentId))
+                cancellationToken.ThrowIfCancellationRequested();
+                // Відомий конфлікт першої команди блокує залежні команди до відправлення пакета.
+                foreach (var first in pending.Where(item => !blocked.Contains(item.Command.ExperimentId))
+                    .GroupBy(item => item.Command.ExperimentId).Select(group => group.First()).ToArray())
                 {
-                    blocked.Add(item.ExperimentId);
-                    continue;
+                    if (!checkedSeries.Add(first.Command.ExperimentId)) continue;
+                    try
+                    {
+                        var series = await api.ExperimentAsync(first.Command.ExperimentId, cancellationToken).ConfigureAwait(false);
+                        if (series.Status == "Draft" && series.Version == first.Command.ExpectedVersion) continue;
+                        // Single перевіряє UUID до старої версії, зокрема після втрати відповіді.
+                        var result = await api.SynchronizeSingleAsync(ToRequest(first.Command), cancellationToken).ConfigureAwait(false);
+                        ValidateResult(first.Command, result);
+                        if (result.Status is not (200 or 201))
+                            throw new ClientApiException((HttpStatusCode)result.Status, result.Error!.Title);
+                        await queue.MarkSentAsync(first.Operation.OperationId, cancellationToken).ConfigureAwait(false);
+                        pending.Remove(first);
+                    }
+                    catch (Exception exception) when (exception is ClientApiException or HttpRequestException or IOException
+                        or InvalidDataException or JsonException
+                        || (exception is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+                    {
+                        await queue.MarkFailedAsync(first.Operation.OperationId, exception.Message, cancellationToken).ConfigureAwait(false);
+                        blocked.Add(first.Command.ExperimentId);
+                        if (exception is not ClientApiException || exception is ClientApiException { Status: HttpStatusCode.Unauthorized })
+                        {
+                            stop = true;
+                            break;
+                        }
+                    }
                 }
+                if (stop) break;
+                var batch = pending.Where(item => !blocked.Contains(item.Command.ExperimentId)).Take(50).ToArray();
+                if (batch.Length == 0) break;
+                foreach (var item in batch) pending.Remove(item);
                 try
                 {
-                    await SendAsync(item, cancellationToken).ConfigureAwait(false);
-                    await queue.MarkSentAsync(operation.OperationId, cancellationToken).ConfigureAwait(false);
+                    var requests = batch.Select(item => (MeasurementSyncRequest?)ToRequest(item.Command)).ToArray();
+                    var results = batch.Length == 1
+                        ? new[] { await api.SynchronizeSingleAsync(requests[0]!, cancellationToken).ConfigureAwait(false) }
+                        : (await api.SynchronizeBatchAsync(requests, cancellationToken).ConfigureAwait(false)).Items.ToArray();
+                    if (results.Length != batch.Length)
+                        throw new InvalidDataException("API повернув неповний звіт синхронізації.");
+                    // Спершу перевіряємо весь контракт, щоб пошкоджений звіт не дав хибний Sent.
+                    for (var index = 0; index < batch.Length; index++) ValidateResult(batch[index].Command, results[index]);
+                    for (var index = 0; index < batch.Length; index++)
+                    {
+                        var result = results[index];
+                        var item = batch[index];
+                        if (result.Status is 200 or 201)
+                            await queue.MarkSentAsync(item.Operation.OperationId, cancellationToken).ConfigureAwait(false);
+                        else
+                        {
+                            await queue.MarkFailedAsync(item.Operation.OperationId,
+                                $"HTTP {result.Status}: {result.Error?.Title ?? "Помилка синхронізації."}", cancellationToken).ConfigureAwait(false);
+                            blocked.Add(item.Command.ExperimentId);
+                        }
+                    }
+                    if (results.Any(item => item.Status == 401)) break;
                 }
-                catch (ClientApiException exception)
-                {
-                    await queue.MarkFailedAsync(operation.OperationId, exception.Message, cancellationToken).ConfigureAwait(false);
-                    blocked.Add(item.ExperimentId);
-                    if (exception.Status == HttpStatusCode.Unauthorized) break;
-                }
-                catch (Exception exception) when (exception is HttpRequestException or IOException
+                catch (Exception exception) when (exception is ClientApiException or HttpRequestException or IOException or InvalidDataException or JsonException
                     || (exception is OperationCanceledException && !cancellationToken.IsCancellationRequested))
                 {
-                    // Невідомий результат запиту: на повторі спочатку перевіряємо ClientId на сервері.
-                    await queue.MarkFailedAsync(operation.OperationId, "Зв’язок перервано; можна повторити відправлення.", cancellationToken).ConfigureAwait(false);
-                    break;
+                    // Вже прийняті сервером команди повторяться з тим самим UUID.
+                    foreach (var item in batch)
+                    {
+                        await queue.MarkFailedAsync(item.Operation.OperationId,
+                            exception is ClientApiException ? exception.Message : "Немає достовірного підтвердження; повторіть із тим самим UUID.",
+                            cancellationToken).ConfigureAwait(false);
+                        blocked.Add(item.Command.ExperimentId);
+                    }
+                    if (exception is not ClientApiException || exception is ClientApiException { Status: HttpStatusCode.Unauthorized }) break;
                 }
             }
-            var result = await queue.GetAllAsync(cancellationToken).ConfigureAwait(false);
-            return new(result.Count(item => item.Status == SyncQueueStatus.Sent),
-                result.Count(item => item.Status == SyncQueueStatus.Failed), result.Count(item => item.Status == SyncQueueStatus.Pending));
+            var final = await queue.GetAllAsync(cancellationToken).ConfigureAwait(false);
+            return new(final.Count(item => item.Status == SyncQueueStatus.Sent),
+                final.Count(item => item.Status == SyncQueueStatus.Failed), final.Count(item => item.Status == SyncQueueStatus.Pending));
         }
         finally { Gate.Release(); }
     }
 
-    private async Task SendAsync(PendingMeasurement item, CancellationToken cancellationToken)
+    private static MeasurementSyncRequest ToRequest(PendingMeasurement item) => new()
     {
-        if (await IsDuplicateAsync(item, cancellationToken).ConfigureAwait(false)) return;
-        var experiment = await api.ExperimentAsync(item.ExperimentId, cancellationToken).ConfigureAwait(false);
-        if (experiment.Status != "Draft" || experiment.Version != item.ExpectedVersion)
-            throw new ClientApiException(HttpStatusCode.Conflict,
-                $"Конфлікт версій серії {item.ExperimentId}: локально {item.ExpectedVersion}, на сервері {experiment.Version}. Дані залишені в черзі; потрібне рішення користувача.");
-        try
-        {
-            var result = await api.AddMeasurementAsync(item.ExperimentId, new AddMeasurementRequest
-            {
-                ClientId = item.ClientId, Value = item.Value, MeasuredAt = item.MeasuredAt, ExpectedVersion = item.ExpectedVersion,
-            }, cancellationToken).ConfigureAwait(false);
-            if (result.Measurement.ClientId != item.ClientId || result.Measurement.ExperimentId != item.ExperimentId
-                || result.Measurement.Value != item.Value || result.Measurement.MeasuredAt != item.MeasuredAt)
-                throw new InvalidDataException("API не підтвердив відправлений вимір; операція залишена для перевірки повтору.");
-        }
-        catch (ClientApiException exception) when (exception.Status == HttpStatusCode.Conflict)
-        {
-            if (!await IsDuplicateAsync(item, cancellationToken).ConfigureAwait(false)) throw;
-        }
-    }
+        ExperimentId = item.ExperimentId, ClientId = item.ClientId, Value = item.Value,
+        MeasuredAt = item.MeasuredAt, ExpectedVersion = item.ExpectedVersion,
+    };
 
-    private async Task<bool> IsDuplicateAsync(PendingMeasurement item, CancellationToken cancellationToken)
+    private static void ValidateResult(PendingMeasurement command, MeasurementSyncResult result)
     {
-        var measurements = await api.MeasurementsAsync(item.ExperimentId, cancellationToken).ConfigureAwait(false);
-        var duplicate = measurements.SingleOrDefault(existing => existing.ClientId == item.ClientId);
-        if (duplicate is null) return false;
-        if (duplicate.Value != item.Value || duplicate.MeasuredAt != item.MeasuredAt)
-            throw new ClientApiException(HttpStatusCode.Conflict, "ClientId вже використаний для інших даних. Автоматична заміна заборонена.");
-        return true;
+        if (result is null || result.ClientId != command.ClientId)
+            throw new InvalidDataException("API змінив порядок або UUID результатів.");
+        if (result.Status is 200 or 201)
+        {
+            var item = result.Measurement;
+            if (item is null || item.ClientId != command.ClientId || item.ExperimentId != command.ExperimentId
+                || item.Value != command.Value || item.MeasuredAt != command.MeasuredAt
+                || result.ExperimentVersion is not > 0 || result.Error is not null
+                || result.Duplicate != (result.Status == 200))
+                throw new InvalidDataException("API не підтвердив payload виміру.");
+        }
+        else if (result.Status is < 400 or > 599 || result.Measurement is not null || result.Duplicate || result.Error is null)
+            throw new InvalidDataException("Некоректний результат помилки синхронізації.");
     }
 }

@@ -129,7 +129,7 @@ public sealed class ExperimentCacheAndWorkerTests
         private readonly string? previousProvider = Environment.GetEnvironmentVariable("LAB_DB_PROVIDER");
         public Fixture() { Directory.CreateDirectory(Root); Environment.SetEnvironmentVariable("LAB_DB_PROVIDER", "Sqlite"); }
         public string Root { get; } = Path.Combine(Path.GetTempPath(), "sigma-cache-" + Guid.NewGuid().ToString("N"));
-        public ClientAccount Account { get; } = new("https://lab.example/", 1, "Юра", "yura@example.org", "token", DateTime.UtcNow.AddHours(1));
+        public ClientAccount Account { get; } = new("https://lab.example/", 1, "Юра", "yura@example.org", "token", DateTime.UtcNow.AddHours(1), "Researcher");
         public ExperimentCache Cache => new(Account, Root);
         public static SiteDto[] Sites => [new(2, "Майданчик", 50, 30, DateTime.UtcNow)];
         public static ExperimentDto[] Experiments => [new(7, "Серія", 2, 3, null, "Draft", DateTime.UtcNow, null, null, 4, "°C")];

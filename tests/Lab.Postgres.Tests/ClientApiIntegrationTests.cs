@@ -16,7 +16,14 @@ namespace Lab.Postgres.Tests;
 public sealed class ClientApiIntegrationTests
 {
     [PostgresFact]
-    public async Task LostResponseOnRealPostgres_RetryMatchesTimestampPrecision_WithoutDuplicate()
+    public Task LostResponseOnRealPostgres_RetryMatchesTimestampPrecision_WithoutDuplicate() =>
+        VerifyLostResponseAsync(1);
+
+    [PostgresFact]
+    public Task LostFiftyItemBatchResponseOnRealPostgres_RetryDoesNotDuplicate() =>
+        VerifyLostResponseAsync(50);
+
+    private static async Task VerifyLostResponseAsync(int count)
     {
         var connection = new NpgsqlConnectionStringBuilder(PostgresTestDatabase.ConnectionString)
         {
@@ -31,14 +38,15 @@ public sealed class ClientApiIntegrationTests
         {
             using var http = new HttpClient(new LoseFirstPostResponse(fixture.Client));
             var queue = new SyncQueueStore(Path.Combine(path, "queue.json"));
-            var item = new PendingMeasurement(series.Id, Guid.NewGuid(), 12, new DateTime(638974000000000007, DateTimeKind.Utc), series.Version);
-            await MeasurementSynchronizer.EnqueueAsync(queue, item);
+            var commands = Enumerable.Range(0, count).Select(index => new PendingMeasurement(series.Id, Guid.NewGuid(),
+                12, new DateTime(638974000000000007 + index, DateTimeKind.Utc), series.Version + index)).ToArray();
+            foreach (var item in commands) await MeasurementSynchronizer.EnqueueAsync(queue, item);
             var sync = new MeasurementSynchronizer(queue, new LabApiClient(http, new Uri("https://localhost/")));
-            Assert.Equal(1, (await sync.SynchronizeAsync()).Failed);
-            await queue.RetryAsync(item.ClientId);
-            Assert.Equal(1, (await sync.SynchronizeAsync()).Sent);
+            Assert.Equal(count, (await sync.SynchronizeAsync()).Failed);
+            foreach (var item in commands) await queue.RetryAsync(item.ClientId);
+            Assert.Equal(count, (await sync.SynchronizeAsync()).Sent);
             await using var db = fixture.CreateContext();
-            Assert.Equal(1, await db.Measurements.CountAsync());
+            Assert.Equal(count, await db.Measurements.CountAsync());
         }
         finally { Directory.Delete(path, true); }
     }
@@ -52,7 +60,7 @@ public sealed class ClientApiIntegrationTests
         Environment.SetEnvironmentVariable("LAB_DB_PROVIDER", "Sqlite");
         try
         {
-            var account = new ClientAccount("https://lab.example/", 1, "Юра", "yura@example.org", "expired", DateTime.UtcNow.AddHours(-1));
+            var account = new ClientAccount("https://lab.example/", 1, "Юра", "yura@example.org", "expired", DateTime.UtcNow.AddHours(-1), "Researcher");
             var cache = new ExperimentCache(account, root);
             await cache.ReplaceAsync([new SiteDto(1, "Майданчик", 50, 30, DateTime.UtcNow)],
                 [new InstrumentDto(1, 1, "Прилад", "SN", "m", 0, 100, 0.1)],
@@ -96,7 +104,7 @@ public sealed class ClientApiIntegrationTests
             await fixture.InitializeAsync();
             var series = await fixture.CreateExperimentAsync();
             var api = new LabApiClient(fixture.Client, new Uri("https://localhost/"));
-            var account = new ClientAccount("https://localhost/", fixture.OwnerId, "Юра", "yura@example.org", "token", DateTime.UtcNow.AddHours(1));
+            var account = new ClientAccount("https://localhost/", fixture.OwnerId, "Юра", "yura@example.org", "token", DateTime.UtcNow.AddHours(1), "Researcher");
             var cache = new ExperimentCache(account, root);
             await cache.ReplaceAsync(await api.SitesAsync(), await api.InstrumentsAsync(), await api.ExperimentsAsync());
             Assert.Equal(series.Id, Assert.Single(await cache.ListAsync()).Id);

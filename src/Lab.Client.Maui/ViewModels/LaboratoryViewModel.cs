@@ -58,6 +58,7 @@ public sealed class LaboratoryViewModel(HttpClient http, IClientSessionStore ses
         }
     }
     public bool IsIdle => !busy;
+    public bool CanWrite => account?.CanWrite == true;
     public string Message { get => message; private set { message = value; Notify(); } }
     public string Statistics { get => statistics; private set { statistics = value; Notify(); } }
     public ObservableCollection<ExperimentDto> Experiments { get; } = [];
@@ -69,6 +70,7 @@ public sealed class LaboratoryViewModel(HttpClient http, IClientSessionStore ses
     public Task InitializeAsync() => RunAsync(async () =>
     {
         account = await sessions.LoadAsync();
+        Notify(nameof(CanWrite));
         if (account is null) return;
         Server = account.Server;
         Email = account.Email;
@@ -85,6 +87,7 @@ public sealed class LaboratoryViewModel(HttpClient http, IClientSessionStore ses
         var next = ClientAccount.FromToken(server, Email, response);
         await sessions.SaveAsync(next);
         account = next;
+        Notify(nameof(CanWrite));
         Password = string.Empty;
         Notify(nameof(Password));
         ClearDisplay();
@@ -96,6 +99,7 @@ public sealed class LaboratoryViewModel(HttpClient http, IClientSessionStore ses
     {
         sessions.Clear();
         account = null;
+        Notify(nameof(CanWrite));
         Password = string.Empty;
         Notify(nameof(Password));
         ClearDisplay();
@@ -108,6 +112,7 @@ public sealed class LaboratoryViewModel(HttpClient http, IClientSessionStore ses
 
     public Task CreateExperimentAsync() => RunAsync(async () =>
     {
+        RequireWriter();
         var api = Api();
         var site = SelectedSite ?? throw new InvalidOperationException("Оберіть майданчик.");
         var instrument = SelectedInstrument ?? throw new InvalidOperationException("Оберіть прилад.");
@@ -137,6 +142,7 @@ public sealed class LaboratoryViewModel(HttpClient http, IClientSessionStore ses
 
     public Task SynchronizeAsync() => RunAsync(async () =>
     {
+        RequireWriter();
         var report = await new MeasurementSynchronizer(Queue(), Api()).SynchronizeAsync();
         await LoadOperationsAsync();
         Message = $"Черга: Sent {report.Sent}, Failed {report.Failed}, Pending {report.Pending}.";
@@ -166,6 +172,7 @@ public sealed class LaboratoryViewModel(HttpClient http, IClientSessionStore ses
     /// <summary>Викликається тільки після явного підтвердження користувачем у View.</summary>
     public Task RebaseAsync() => RunAsync(async () =>
     {
+        RequireWriter();
         var operation = SelectedOperation ?? throw new InvalidOperationException("Оберіть невдалу операцію.");
         var command = JsonSerializer.Deserialize<PendingMeasurement>(operation.Payload, JsonOptions)
             ?? throw new InvalidDataException("Пошкоджена операція.");
@@ -189,6 +196,10 @@ public sealed class LaboratoryViewModel(HttpClient http, IClientSessionStore ses
     });
 
     private ClientAccount Account() => account ?? throw new InvalidOperationException("Спочатку увійдіть.");
+    private void RequireWriter()
+    {
+        if (!Account().CanWrite) throw new InvalidOperationException("Профіль має режим читання. Для змін потрібен Researcher.");
+    }
     private LabApiClient Api()
     {
         var current = Account();
@@ -203,7 +214,9 @@ public sealed class LaboratoryViewModel(HttpClient http, IClientSessionStore ses
         var sites = await api.SitesAsync();
         var instruments = await api.InstrumentsAsync();
         var experiments = await api.ExperimentsAsync();
-        await new ExperimentCache(Account(), root).ReplaceAsync(sites, instruments, experiments);
+        var contexts = new List<ExperimentContextDto>();
+        foreach (var item in experiments) contexts.Add(await api.ExperimentContextAsync(item.Id));
+        await new ExperimentCache(Account(), root).ReplaceAsync(contexts, sites, instruments);
         Sites.Clear();
         Instruments.Clear();
         foreach (var item in sites) Sites.Add(item);
@@ -243,7 +256,7 @@ public sealed class LaboratoryViewModel(HttpClient http, IClientSessionStore ses
         busy = true;
         Notify(nameof(IsIdle));
         try { await action(); }
-        catch (Exception exception) when (exception is ClientApiException or HttpRequestException or IOException
+        catch (Exception exception) when (exception is ClientApiException or HttpRequestException or IOException or InvalidDataException
             or InvalidOperationException or ArgumentException or JsonException or Microsoft.Data.Sqlite.SqliteException
             or Microsoft.EntityFrameworkCore.DbUpdateException or OperationCanceledException or KeyNotFoundException
             or System.Security.Cryptography.CryptographicException or NotSupportedException)

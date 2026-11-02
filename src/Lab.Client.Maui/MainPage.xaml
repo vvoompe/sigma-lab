@@ -40,18 +40,18 @@
             <Entry Placeholder="Назва нової серії" Text="{Binding NewExperimentName}" />
             <Picker Title="Майданчик" ItemsSource="{Binding Sites}" ItemDisplayBinding="{Binding Name, x:DataType=sites:SiteDto}" SelectedItem="{Binding SelectedSite}" />
             <Picker Title="Прилад" ItemsSource="{Binding Instruments}" ItemDisplayBinding="{Binding Name, x:DataType=instruments:InstrumentDto}" SelectedItem="{Binding SelectedInstrument}" />
-            <Button Text="Створити серію на сервері" Clicked="OnCreate" />
+            <Button Text="Створити серію на сервері" Clicked="OnCreate" IsEnabled="{Binding CanWrite}" />
             <Label Text="Внесення виміру — працює офлайн" FontAttributes="Bold" />
             <Entry Placeholder="Значення в одиницях приладу" Text="{Binding MeasurementValue}" Keyboard="Numeric" />
-            <Button Text="Зберегти вимір у локальну чергу" Clicked="OnAdd" />
-            <Button Text="Синхронізувати чергу" Clicked="OnSync" />
+            <Button Text="Зберегти вимір у локальну чергу" Clicked="OnAdd" IsEnabled="{Binding CanWrite}" />
+            <Button Text="Синхронізувати чергу" Clicked="OnSync" IsEnabled="{Binding CanWrite}" />
             <Picker Title="Операції черги" ItemsSource="{Binding Operations}" ItemDisplayBinding="{Binding DisplayName, x:DataType=sync:SyncQueueItem}" SelectedItem="{Binding SelectedOperation}" />
             <Label Text="{Binding OperationDetails}" />
             <Label Text="Остання помилка:" />
             <Label Text="{Binding SelectedOperation.LastError}" />
             <Label Text="{Binding SelectedOperation.Status, StringFormat='Стан: {0}'}" />
             <Button Text="Повторити з тією самою версією" Clicked="OnRetry" />
-            <Button Text="Конфлікт: повторити для поточної версії сервера…" Clicked="OnRebase" />
+            <Button Text="Конфлікт: повторити для поточної версії сервера…" Clicked="OnRebase" IsEnabled="{Binding CanWrite}" />
             <Button Text="Відкинути невдалу локальну операцію…" Clicked="OnDiscard" />
             <Button Text="Статистика з сервера" Clicked="OnStatistics" />
             <Label Text="{Binding Statistics}" LineBreakMode="WordWrap" />
