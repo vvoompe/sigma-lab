@@ -8,6 +8,7 @@ using Lab.Domain.Experiments;
 using Lab.Domain.Measurements;
 using Lab.Domain.ReferenceValues;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Lab.Infrastructure.Persistence;
 
@@ -37,6 +38,10 @@ public sealed class LabDbContext(DbContextOptions<LabDbContext> options)
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
     /// <inheritdoc />
+    /// <inheritdoc />
+    public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default) =>
+        Database.BeginTransactionAsync(cancellationToken);
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
