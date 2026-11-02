@@ -17,16 +17,31 @@ public sealed class ReferenceValueTests
     }
 
     [Fact]
-    public void Оновлення_змінює_всі_поля()
+    public void Оновлення_змінює_назву_значення_і_допуск_зі_збереженням_одиниці()
     {
         var value = new ReferenceValue("Еталон", "pH", 7.4, 0.05);
 
-        value.Update("Еталон 2", "C", 12.5, 0.2);
+        value.Update("Еталон 2", " pH ", 12.5, 0.2);
 
         Assert.Equal("Еталон 2", value.Name);
-        Assert.Equal("C", value.Unit);
+        Assert.Equal("pH", value.Unit);
         Assert.Equal(12.5, value.Value);
         Assert.Equal(0.2, value.AbsoluteTolerance);
+    }
+
+    [Theory]
+    [InlineData("C")]
+    [InlineData("PH")]
+    public void Зміна_одиниці_відхиляється_без_часткового_оновлення(string unit)
+    {
+        var value = new ReferenceValue("Еталон", "pH", 7.4, 0.05);
+
+        Assert.Throws<InvalidOperationException>(() => value.Update("Інший", unit, 12, 1));
+
+        Assert.Equal("Еталон", value.Name);
+        Assert.Equal("pH", value.Unit);
+        Assert.Equal(7.4, value.Value);
+        Assert.Equal(0.05, value.AbsoluteTolerance);
     }
 
     [Theory]

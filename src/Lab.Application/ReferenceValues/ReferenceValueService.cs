@@ -89,12 +89,11 @@ public sealed class ReferenceValueService(IAppDbContext db, ICurrentUser current
         var item = await db.ReferenceValues.SingleOrDefaultAsync(value => value.Id == id, cancellationToken)
             ?? throw ResourceValidation.Missing();
 
-        // Одиниця еталона зашита в уже створені серії: конструктор Experiment перевіряв
-        // збіг лише під час створення, тому зміна одиниці зламала б статистику старої серії.
-        if (!string.Equals(item.Unit.Trim(), request.Unit.Trim(), StringComparison.Ordinal)
-            && await db.Experiments.AnyAsync(experiment => experiment.ReferenceValueId == id, cancellationToken))
+        // Одиниця незмінна навіть у ще не використаного еталона: серія може вже
+        // прочитати його в іншому контексті, але ще не зберегти посилання в БД.
+        if (!string.Equals(item.Unit, request.Unit.Trim(), StringComparison.Ordinal))
         {
-            throw ResourceValidation.Conflict("Одиницю еталона, який використовується в серіях, змінювати не можна.");
+            throw ResourceValidation.Conflict("Одиницю еталона змінювати не можна; створіть новий еталон.");
         }
 
         item.Update(request.Name, request.Unit, request.Value!.Value, request.AbsoluteTolerance!.Value);

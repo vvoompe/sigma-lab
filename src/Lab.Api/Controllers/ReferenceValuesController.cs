@@ -40,7 +40,7 @@ public sealed class ReferenceValuesController(IReferenceValueService values) : C
         return CreatedAtRoute("GetReferenceValueById", new { id = created.Id }, created);
     }
 
-    /// <summary>Повністю оновлює еталон (лише адміністратор).</summary>
+    /// <summary>Оновлює назву, значення й допуск (лише адміністратор); зміна одиниці повертає 409.</summary>
     [HttpPut("{id:int}")]
     [ProducesResponseType<ReferenceValueDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<ReferenceValueDto>> UpdateAsync(

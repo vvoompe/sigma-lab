@@ -7,12 +7,15 @@ public sealed class ReferenceValue
 {
     private ReferenceValue() { }
 
-    public ReferenceValue(string name, string unit, double value, double absoluteTolerance) =>
+    public ReferenceValue(string name, string unit, double value, double absoluteTolerance)
+    {
+        Unit = DomainRules.Text(unit, nameof(unit), 32);
         Update(name, unit, value, absoluteTolerance);
+    }
 
     /// <summary>
-    /// Змінює назву, одиницю, значення й допуск. Ті самі правила, що й у конструкторі:
-    /// один шлях валідації для створення та редагування.
+    /// Змінює назву, значення й допуск. Одиниця незмінна після створення:
+    /// це зберігає сумісність і з серією, яка створюється паралельно.
     /// </summary>
     public void Update(string name, string unit, double value, double absoluteTolerance)
     {
@@ -21,8 +24,12 @@ public sealed class ReferenceValue
         DomainRules.Finite(value, nameof(value));
         DomainRules.Finite(absoluteTolerance, nameof(absoluteTolerance));
         ArgumentOutOfRangeException.ThrowIfNegative(absoluteTolerance);
+        if (!string.Equals(Unit, validatedUnit, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Одиницю еталона змінювати не можна; створіть новий еталон.");
+        }
+
         Name = validatedName;
-        Unit = validatedUnit;
         Value = value;
         AbsoluteTolerance = absoluteTolerance;
     }

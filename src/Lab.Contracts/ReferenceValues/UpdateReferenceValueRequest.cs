@@ -10,7 +10,7 @@ public sealed record UpdateReferenceValueRequest
     [Required, MaxLength(100)]
     public string Name { get; init; } = string.Empty;
 
-    /// <summary>Одиниця виміру.</summary>
+    /// <summary>Поточна одиниця виміру після Trim; інша одиниця дає 409. Для неї створіть новий еталон.</summary>
     [Required, MaxLength(32)]
     public string Unit { get; init; } = string.Empty;
 
