@@ -30,6 +30,54 @@
 - `docker compose` для локальної PostgreSQL і `.env.example` без секретів;
 - `scripts/coverage-summary.py` - зведення покриття з усіх тестових проєктів.
 
+## API + PostgreSQL однією командою (#10)
+
+Потрібен лише Docker Desktop/Engine із Compose v2. З кореня клону задайте власні
+секрети у середовищі (не комітьте їх), потім `docker compose up --build -d --wait`.
+Образ multi-stage, фінальний контейнер працює від non-root і не містить SDK.
+PostgreSQL не публікує порт на хост; API доступний лише на loopback.
+
+PowerShell 7:
+
+```powershell
+$env:LAB_PG_PASSWORD = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(24))
+$env:Jwt__Key = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
+docker compose up --build -d --wait
+```
+
+Bash:
+
+```bash
+export LAB_PG_PASSWORD="$(openssl rand -hex 24)"
+export Jwt__Key="$(openssl rand -hex 32)"
+docker compose up --build -d --wait
+```
+
+Збережіть створені секрети у своєму захищеному сховищі перед закриттям термінала:
+PostgreSQL зберігає пароль у named volume, тому для наступного запуску потрібен
+той самий пароль. Не генеруйте новий для існуючого тому. Можна використати локальний
+`.env` за шаблоном `.env.example` (він виключений із Git та build context).
+
+- `http://127.0.0.1:5080/health/ready` → `Healthy` лише після успішного запиту до схеми БД.
+- `docker compose ps` → обидва сервіси healthy. Міграції застосовуються API на старті.
+- API/OpenAPI захищені JWT; readiness відкритий і повертає тільки стан без даних.
+- Для іншого порту задайте `LAB_API_PORT`. Показ віддаленому MAUI потребує окремого
+  довіреного HTTPS reverse proxy; цей локальний HTTP compose не послаблює TLS клієнта.
+- Реєстрація `/api/auth/register` створює Researcher. Першого Administrator реалізує
+  Z3/#40 у PR #47: після merge можна передати `Seed__AdminEmail/Seed__AdminPassword`.
+  У базовому main ці змінні ще не створюють адміністратора; Docker не обходить ролі.
+- Worker/MAUI лишаються Z4/#46; цей compose виконує критерій #10 база+API та не
+  підміняє окрему перевірку Worker або UI.
+
+Наскрізна перевірка окремого тестового стека: `python scripts/docker-smoke.py`.
+Вона реєструє демонстраційного дослідника, створює Site через API, звіряє цей самий
+рядок у PostgreSQL, перевіряє 200/201/400/401, міграції та non-root runtime без SDK.
+Скрипт призначений для окремого тестового compose-проєкту: він додає демодані,
+але не видаляє наявні. Для іншої адреси задайте `LAB_API_URL`.
+
+`docker compose stop` зупиняє, `docker compose start --wait` поновлює, `docker compose down`
+прибирає контейнери/мережу зі збереженням даних. Не додавайте `--volumes`, якщо дані
+потрібні. CI має обов'язковий docker-smoke, результат входить до ci-gate.
 ## Запуск з нуля
 
 Потрібні: .NET SDK 10 (версія зафіксована в `global.json`), Docker, Python 3 (для скриптів).
