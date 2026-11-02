@@ -33,6 +33,7 @@ public sealed class SqliteMigrationTests
                     "20261015200112_DomainModel",
                     "20261015200437_SiteOwnership",
                     "20261017210144_SecurityCredentials",
+                    "20261024141329_AddSiteManager",
                 },
                 applied);
 
@@ -111,7 +112,8 @@ public sealed class SqliteMigrationTests
                         "20261015200112_DomainModel",
                         "20261015200437_SiteOwnership",
                         "20261017210144_SecurityCredentials",
-                    },
+                        "20261024141329_AddSiteManager",
+                        },
                     await second.Database.GetAppliedMigrationsAsync());
             }
         }

@@ -24,7 +24,7 @@
 | lab_users | Профіль користувача | Немає |
 | user_credentials | Хеш пароля, роль і стан блокування | UserId -> lab_users (спільний PK/FK) |
 | audit_entries | Події безпеки та зміни ролей | ActorId -> lab_users |
-| sites | Майданчик | OwnerId -> lab_users, nullable |
+| sites | Майданчик | OwnerId -> lab_users (автор), ManagerId -> lab_users (керівник), обидва nullable |
 | instruments | Прилад і метрологічні параметри | OwnerId -> lab_users |
 | reference_values | Іменований еталон: Unit, Value, AbsoluteTolerance | Немає |
 | experiments | Серія, її власник, стан та підпис | SiteId -> sites; OwnerId/SignedById -> lab_users; InstrumentId -> instruments; ReferenceValueId -> reference_values |
@@ -56,7 +56,7 @@ Email зберігає оригінальний регістр після Trim. 
 - Серійний номер порівнюється з урахуванням регістру, після Trim; прихованої конвертації немає.
 - Experiment: (SiteId, Status), (OwnerId, CreatedAt), індекси інших FK.
 - Measurement: (ExperimentId, MeasuredAt).
-- Site: збережено старі індекси; додано OwnerId.
+- Site: збережено старі індекси; додано OwnerId і ManagerId. Один керівник на майданчик; FK з `Restrict`.
 
 ## Правила змін
 
@@ -102,6 +102,7 @@ LegacyOwnerId не використовувати для рішень про д�
 1. DomainModel - таблиці, індекси, інваріанти схеми й збереження LegacyOwnerId.
 2. SiteOwnership - FK та індекс sites.OwnerId.
 3. SecurityCredentials - окремі таблиці `user_credentials` та `audit_entries`.
+4. AddSiteManager - колонка `sites.ManagerId`, FK на `lab_users` з `Restrict` та індекс; дані не змінюються.
 
 Окрема межа потрібна для SQLite: Down спочатку завершує перебудову sites без FK,
 і лише наступна Down видаляє lab_users. Інакше відкладена перебудова EF призводить
