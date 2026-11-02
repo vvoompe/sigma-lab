@@ -7,6 +7,7 @@ using Lab.Domain.Experiments;
 using Lab.Domain.Measurements;
 using Lab.Domain.ReferenceValues;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Lab.Application.Abstractions;
 
@@ -33,6 +34,12 @@ public interface IAppDbContext
 
     /// <summary>Аудит подій безпеки.</summary>
     DbSet<AuditEntry> AuditEntries { get; }
+
+    /// <summary>
+    /// Відкриває транзакцію для кількох команд, які мають стати атомарними
+    /// (наприклад, умовний UPDATE і запис аудиту).
+    /// </summary>
+    Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Зберігає зміни однієї одиниці роботи.</summary>
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
