@@ -176,6 +176,31 @@ public sealed class ResourceApiTests : IAsyncLifetime, IAsyncDisposable
     }
 
     [Fact]
+    public async Task Researcher_owner_cannot_sign_own_experiment()
+    {
+        var item = await fixture.CreateExperimentAsync();
+        await AssertProblemAsync(
+            await Client.PostAsJsonAsync($"/api/experiments/{item.Id}/sign", new { expectedVersion = item.Version }),
+            HttpStatusCode.Forbidden);
+
+        await using var db = fixture.CreateContext();
+        var stored = await db.Experiments.SingleAsync(value => value.Id == item.Id);
+        Assert.Equal(ExperimentStatus.Draft, stored.Status);
+        Assert.Equal(item.Version, stored.Version);
+        Assert.Empty(await db.AuditEntries.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Lab_manager_owner_cannot_mutate_experiment()
+    {
+        var item = await fixture.CreateExperimentAsync();
+        fixture.Authenticate("LabManager");
+        await AssertProblemAsync(
+            await Client.PutAsJsonAsync($"/api/experiments/{item.Id}", new { name = "x", expectedVersion = item.Version }),
+            HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task Lab_manager_on_another_site_cannot_sign_experiment()
     {
         var item = await fixture.CreateExperimentAsync();

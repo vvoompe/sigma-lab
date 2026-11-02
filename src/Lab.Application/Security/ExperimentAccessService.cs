@@ -33,8 +33,12 @@ public sealed class ExperimentAccessService(IAppDbContext db, ICurrentUser curre
     {
         ArgumentNullException.ThrowIfNull(experiment);
         var userId = ResourceValidation.UserId(currentUser);
-        if (experiment.OwnerId == userId)
+        if (operation == ExperimentAccessOperation.Mutate &&
+            currentUser.Role == nameof(UserRole.Researcher) &&
+            experiment.OwnerId == userId)
+        {
             return;
+        }
 
         if (operation == ExperimentAccessOperation.Sign &&
             currentUser.Role == nameof(UserRole.LabManager) &&
