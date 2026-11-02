@@ -425,3 +425,12 @@ PostgreSQL. Повний прогін: 321 passed без пропусків; Rel
 їх рев'ю Z1 ведеться в #35. Гілка створена від main, credentials підключені звичайним
 merge; інтеграційний PR спрямовується до ще не злитої гілки #34. Підпис та завершення
 #8 — окрема робота Z3.
+
+## Z2 / #10 — контейнеризований API + PostgreSQL, 02.11.2026
+
+Кореневий compose має окремий named volume і внутрішній PostgreSQL без host-порту.
+API починає роботу після pg_isready, сам застосовує EF-міграції й має readiness,
+який читає мігровану таблицю. Публічно повертається лише Healthy/Unhealthy.
+Образ API містить лише publish output/runtime, запускається non-root; GSSAPI
+потрібен Npgsql, curl — healthcheck. Bootstrap адміністратора — Z3, Worker — Z4.
+Секрети подаються environment/.env, не build args. Docker smoke включено в ci-gate.

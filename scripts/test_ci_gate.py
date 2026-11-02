@@ -11,7 +11,7 @@ import unittest
 class CiGateTests(unittest.TestCase):
     def run_gate(self, relevant="true", maui="success", failed_job=None, status="failure"):
         needs = {job: {"result": "success"} for job in
-                 ("changes", "build-and-test", "server-sdk-compatibility")}
+                 ("changes", "build-and-test", "server-sdk-compatibility", "docker-smoke")}
         needs["changes"]["outputs"] = {"maui": relevant}
         needs["maui-build"] = {"result": maui}
         if failed_job:
@@ -42,7 +42,7 @@ class CiGateTests(unittest.TestCase):
                 self.assertEqual(1, self.run_gate("false", status))
 
     def test_server_and_path_filter_must_succeed(self):
-        for job in ("changes", "build-and-test", "server-sdk-compatibility"):
+        for job in ("changes", "build-and-test", "server-sdk-compatibility", "docker-smoke"):
             for status in ("failure", "cancelled", "skipped"):
                 with self.subTest(job=job, status=status):
                     self.assertEqual(1, self.run_gate(failed_job=job, status=status))
