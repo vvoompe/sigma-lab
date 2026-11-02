@@ -20,6 +20,7 @@ public static class LabApplicationServiceCollectionExtensions
         services.AddScoped<IInstrumentService, InstrumentService>();
         services.AddScoped<IExperimentService, ExperimentService>();
         services.AddScoped<IExperimentExportService, ExperimentExportService>();
+        services.AddScoped<IReferenceValueService, ReferenceValues.ReferenceValueService>();
         return services;
     }
 }

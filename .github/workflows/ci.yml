@@ -178,10 +178,27 @@ jobs:
         shell: pwsh
         run: dotnet build src/Lab.Client.Maui/Lab.Client.Maui.csproj -c Release -f net10.0-android "-p:AndroidSdkDirectory=$env:ANDROID_HOME" "-p:JavaSdkDirectory=$env:JAVA_HOME_21_X64"
 
+  docker-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Чистий Docker-стек, міграції та реальний HTTP запис
+        shell: bash
+        run: |
+          export COMPOSE_PROJECT_NAME="sigma-ci-${GITHUB_RUN_ID}"
+          export LAB_PG_PASSWORD="$(openssl rand -hex 24)"
+          export Jwt__Key="$(openssl rand -hex 32)"
+          echo "::add-mask::$LAB_PG_PASSWORD"
+          echo "::add-mask::$Jwt__Key"
+          trap 'docker compose logs --no-color; docker compose down' EXIT
+          docker compose up --build -d --wait --wait-timeout 180
+          python3 scripts/docker-smoke.py
+
   ci-gate:
     # always потрібний, щоб невдалий або пропущений dependency не пропустив сам gate.
     if: ${{ always() }}
-    needs: [changes, build-and-test, server-sdk-compatibility, maui-build]
+    needs: [changes, build-and-test, server-sdk-compatibility, maui-build, docker-smoke]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
