@@ -29,6 +29,7 @@ app.UseAuthorization();
 if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
 {
     await DatabaseStartup.ApplyMigrationsAsync(app.Services, app.Logger);
+    await DatabaseStartup.SeedInitialAdministratorAsync(app.Services, app.Configuration);
 }
 
 app.MapControllers();

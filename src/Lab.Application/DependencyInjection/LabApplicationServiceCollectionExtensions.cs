@@ -17,8 +17,10 @@ public static class LabApplicationServiceCollectionExtensions
     {
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IPasswordHasher<UserCredential>, PasswordHasher<UserCredential>>();
+        services.AddScoped<IInitialAdministratorSeeder, InitialAdministratorSeeder>();
         services.AddScoped<ISiteService, SiteService>();
         services.AddScoped<IInstrumentService, InstrumentService>();
+        services.AddScoped<IExperimentAccessService, ExperimentAccessService>();
         services.AddScoped<IExperimentService, ExperimentService>();
         services.AddScoped<IMeasurementSyncService, MeasurementSyncService>();
         services.AddScoped<MeasurementSyncAttempt>();

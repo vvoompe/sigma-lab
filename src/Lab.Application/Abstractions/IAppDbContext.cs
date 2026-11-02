@@ -6,6 +6,7 @@ using Lab.Domain.Instruments;
 using Lab.Domain.Experiments;
 using Lab.Domain.Measurements;
 using Lab.Domain.ReferenceValues;
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -39,7 +40,9 @@ public interface IAppDbContext
     /// Відкриває транзакцію для кількох команд, які мають стати атомарними
     /// (наприклад, умовний UPDATE і запис аудиту).
     /// </summary>
-    Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default);
+    Task<IDbContextTransaction> BeginTransactionAsync(
+        IsolationLevel isolationLevel = IsolationLevel.ReadCommitted,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Зберігає зміни однієї одиниці роботи.</summary>
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

@@ -191,7 +191,7 @@ public sealed class SiteService(IAppDbContext db, ICurrentUser currentUser) : IS
 
         // Порівняння початкового значення в самому UPDATE: два паралельні запити не
         // можуть обидва записати аудит для одного призначення.
-        await using var transaction = await db.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await db.BeginTransactionAsync(cancellationToken: cancellationToken);
         var target = db.Sites.Where(item => item.Id == site.Id);
         target = previousManagerId is null
             ? target.Where(item => item.ManagerId == null)

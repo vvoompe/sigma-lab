@@ -228,6 +228,22 @@ NETSDK1147 через відсутню workload `maui-android`. Перевірк
 не послаблювали. Контракт PUT потребує рев'ю Z2 перед PR merge; схема credentials —
 рев'ю Z1.
 
+**Фінальний етап Z3 — доступ до серій, підпис і перший Administrator.** У PR #47 додано
+`IExperimentAccessService`: Researcher бачить власні серії, LabManager — власні та серії
+майданчиків із `Site.ManagerId`; фільтр застосовується до SQL-запиту до `Count/Skip/Take`.
+Недоступне читання повертає 404, заборонена зміна — 403. Додано
+`POST /api/experiments/{id}/sign`: actor і UTC-час походять із перевіреного користувача
+та сервера, а Experiment і `AuditEntry("experiment.signed", ...)` зберігаються одним
+`SaveChangesAsync`. Додано bootstrap першого Administrator через
+`Seed__AdminEmail`/`Seed__AdminPassword`; секрети не логуються, повторний запуск не
+створює другого адміністратора.
+
+**Як перевірено.** Фокусні Z3-тести — 3 пройдено. Повний серверний прогін: 79 domain,
+229 application і 18 PostgreSQL тестів пройдено; 2 application та 10 PostgreSQL
+тестів штатно пропущено без Docker. Release build — 0 попереджень/помилок. Покриття
+ядра — 1057/1089 = 97.06%, поріг 80% пройдено. Docker/PostgreSQL потрібно повторити
+в CI; MAUI workload не потрібен для серверного solution filter.
+
 ## 5. Юра - зона Z4 (клієнт MAUI, офлайн-база, синхронізація, фоновий обробник)
 
 **Інструменти.** Codex, модель GPT-6; доступ до файлів, терміналу й GitHub.
