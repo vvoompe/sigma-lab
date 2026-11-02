@@ -32,16 +32,25 @@ internal sealed class MeasurementSyncAttempt(IAppDbContext db, ICurrentUser curr
             throw new ResourceException(ResourceErrorKind.Forbidden, "Немає прав на зміну серії.");
 
         // Перевірка доступу перед глобальним UUID: жодних даних чужого виміру назовні.
-        var existing = await db.Measurements.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.ClientId == add.ClientId, cancellationToken);
+        // Вимір і версія його агрегата мають належати одному SQL-знімку:
+        // паралельна вставка могла відбутися після першого читання серії.
+        var existing = await (
+            from measurement in db.Measurements.AsNoTracking()
+            join experiment in db.Experiments.AsNoTracking() on measurement.ExperimentId equals experiment.Id
+            join instrument in db.Instruments.AsNoTracking() on experiment.InstrumentId equals instrument.Id
+            where measurement.ClientId == add.ClientId
+            select new { Measurement = measurement, experiment.OwnerId, ExperimentVersion = experiment.Version, instrument.Unit })
+            .SingleOrDefaultAsync(cancellationToken);
         var measuredAt = Microseconds(add.MeasuredAt!.Value);
         if (existing is not null)
         {
-            if (existing.ExperimentId != id || existing.Value != add.Value || Microseconds(existing.MeasuredAt) != measuredAt)
+            var measurement = existing.Measurement;
+            if (measurement.ExperimentId != id || existing.OwnerId != ResourceValidation.UserId(currentUser)
+                || measurement.Value != add.Value || Microseconds(measurement.MeasuredAt) != measuredAt)
                 return MeasurementSyncService.Failure(request, 409, "ClientId уже використано з іншими даними.", series.Version);
-            var dto = new MeasurementDto(existing.Id, id, existing.ClientId, existing.Value,
-                existing.MeasuredAt, existing.Version, series.Unit);
-            return new MeasurementSyncResult(existing.ClientId, 200, true, dto, series.Version, null);
+            var dto = new MeasurementDto(measurement.Id, id, measurement.ClientId, measurement.Value,
+                measurement.MeasuredAt, measurement.Version, existing.Unit);
+            return new MeasurementSyncResult(measurement.ClientId, 200, true, dto, existing.ExperimentVersion, null);
         }
         if (!create) return null;
         if (series.Status != ExperimentStatus.Draft || series.Version != add.ExpectedVersion)

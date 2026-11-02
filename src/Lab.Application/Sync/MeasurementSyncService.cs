@@ -27,6 +27,21 @@ public sealed partial class MeasurementSyncService(IServiceScopeFactory scopes, 
     {
         try
         {
+            return await SynchronizeItemAsync(request, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // Межа всього елемента охоплює також збої повторного читання в catch.
+            LogItemFailure(logger, exception);
+            return Failure(request, 500, "Внутрішня помилка сервера.");
+        }
+    }
+
+    private async Task<MeasurementSyncResult> SynchronizeItemAsync(
+        MeasurementSyncRequest? request, CancellationToken cancellationToken)
+    {
+        try
+        {
             try
             {
                 return (await ExecuteAsync(request, true, cancellationToken))!;
@@ -65,11 +80,6 @@ public sealed partial class MeasurementSyncService(IServiceScopeFactory scopes, 
         catch (Exception exception) when (exception is ArgumentException or ValidationException)
         {
             return Failure(request, 400, "Некоректні дані виміру; перевірте поля, UTC-час і діапазон приладу.");
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogItemFailure(logger, exception);
-            return Failure(request, 500, "Внутрішня помилка сервера.");
         }
     }
 
