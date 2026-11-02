@@ -37,9 +37,15 @@ public sealed class MeasurementSynchronizer(SyncQueueStore queue, LabApiClient a
             var commands = items.Where(item => item.Status != SyncQueueStatus.Sent).Select(item =>
                 (Operation: item, Command: JsonSerializer.Deserialize<PendingMeasurement>(item.Payload, JsonOptions)
                     ?? throw new InvalidDataException("Пошкоджено команду виміру."))).ToArray();
-            var blocked = commands.Where(item => item.Operation.Status == SyncQueueStatus.Failed)
-                .Select(item => item.Command.ExperimentId).ToHashSet();
-            var pending = commands.Where(item => item.Operation.Status == SyncQueueStatus.Pending).ToList();
+            var existingFailures = new HashSet<int>();
+            var pending = new List<(SyncQueueItem Operation, PendingMeasurement Command)>();
+            foreach (var item in commands)
+            {
+                if (item.Operation.Status == SyncQueueStatus.Failed) existingFailures.Add(item.Command.ExperimentId);
+                else if (!existingFailures.Contains(item.Command.ExperimentId)) pending.Add(item);
+            }
+            // Пізніший Failed блокує наступні команди, але не вже явно повторену попередню.
+            var blocked = new HashSet<int>();
             var checkedSeries = new HashSet<int>();
             var stop = false;
             while (pending.Count > 0)

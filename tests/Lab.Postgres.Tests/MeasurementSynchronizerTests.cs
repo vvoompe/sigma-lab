@@ -182,6 +182,24 @@ public sealed class MeasurementSynchronizerTests
         Assert.Equal([2], fixture.Server.BatchSizes);
     }
 
+    [Fact]
+    public async Task RetryingFirstFailedCommand_IsNotBlockedByLaterFailedCommand()
+    {
+        using var fixture = new Fixture();
+        fixture.Server.LoseResponse = true;
+        var first = Command(1);
+        var second = Command(2);
+        await MeasurementSynchronizer.EnqueueAsync(fixture.Queue, first);
+        await MeasurementSynchronizer.EnqueueAsync(fixture.Queue, second);
+        Assert.Equal(2, (await fixture.Synchronizer.SynchronizeAsync()).Failed);
+        await fixture.Queue.RetryAsync(first.ClientId);
+        var retried = await fixture.Synchronizer.SynchronizeAsync();
+        Assert.Equal(1, retried.Sent);
+        Assert.Equal(1, retried.Failed);
+        Assert.Equal(2, fixture.Server.Posts);
+        Assert.Equal(SyncQueueStatus.Sent, (await fixture.Queue.GetAllAsync())[0].Status);
+    }
+
     private static PendingMeasurement Command(long version) => new(7, Guid.NewGuid(), 12.5, DateTime.UtcNow, version);
 
     private sealed class Fixture : IDisposable
