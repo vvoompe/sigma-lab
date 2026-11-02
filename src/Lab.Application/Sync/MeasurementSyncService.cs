@@ -52,8 +52,13 @@ public sealed partial class MeasurementSyncService(IServiceScopeFactory scopes, 
                 ResourceErrorKind.Forbidden => 403,
                 ResourceErrorKind.NotFound => 404,
                 ResourceErrorKind.Conflict => 409,
-                _ => throw new InvalidOperationException("Невідомий вид прикладної помилки.", exception),
+                _ => 500,
             };
+            if (status == 500)
+            {
+                LogItemFailure(logger, exception);
+                return Failure(request, 500, "Внутрішня помилка сервера.");
+            }
             return Failure(request, status, exception.Message,
                 status == 409 ? await ReadVersionAsync(request, cancellationToken) : null);
         }

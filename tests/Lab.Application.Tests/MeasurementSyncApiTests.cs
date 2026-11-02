@@ -1,14 +1,56 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Lab.Application.Abstractions;
+using Lab.Application.DependencyInjection;
+using Lab.Application.Resources;
+using Lab.Application.Security;
 using Lab.Contracts.Sync;
+using Lab.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
 namespace Lab.Application.Tests;
 
 public sealed class MeasurementSyncApiTests
 {
+    [Fact]
+    public async Task Application_service_also_rejects_missing_identity_without_http_middleware()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLabApplication();
+        services.AddDbContext<LabDbContext>(options => options.UseSqlite("Data Source=:memory:"));
+        services.AddScoped<IAppDbContext>(provider => provider.GetRequiredService<LabDbContext>());
+        services.AddSingleton<ICurrentUser>(new AnonymousUser());
+        await using var provider = services.BuildServiceProvider();
+        var result = await provider.GetRequiredService<IMeasurementSyncService>().SynchronizeAsync(Item(1, 1));
+        Assert.Equal(401, result.Status);
+        Assert.Null(result.Measurement);
+    }
+
+    [Theory]
+    [InlineData((int)ResourceErrorKind.Conflict, 409)]
+    [InlineData(int.MaxValue, 500)]
+    public async Task Application_failure_does_not_abort_following_batch_item(int kind, int expected)
+    {
+        await using var fixture = await FixtureAsync();
+        var series = await fixture.CreateExperimentAsync();
+        fixture.BeforeSave.Callback = () => throw new ResourceException((ResourceErrorKind)kind, "internal-detail");
+        using var response = await fixture.Client.PostAsJsonAsync("/api/sync/measurements",
+            new MeasurementSyncBatchRequest { Items = [Item(series.Id, 1), Item(series.Id, 1)] });
+        Assert.Equal(HttpStatusCode.MultiStatus, response.StatusCode);
+        var result = (await response.Content.ReadFromJsonAsync<MeasurementSyncBatchResult>())!;
+        Assert.Equal([expected, 201], result.Items.Select(item => item.Status));
+        if (expected == 500)
+            Assert.DoesNotContain("internal-detail", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        else
+            Assert.Equal(1, result.Items[0].ExperimentVersion);
+        await using var stored = fixture.CreateContext();
+        Assert.Single(await stored.Measurements.ToListAsync());
+    }
+
     [Fact]
     public async Task Lost_response_retry_is_duplicate_even_after_version_changed_and_signing()
     {
@@ -296,4 +338,10 @@ public sealed class MeasurementSyncApiTests
         ?? Environment.GetEnvironmentVariable("ConnectionStrings__Postgres")
         ?? throw new InvalidOperationException("Задайте окреме тестове підключення PostgreSQL."))
         { Database = "resource_api_" + Guid.NewGuid().ToString("N") }.ConnectionString;
+
+    private sealed class AnonymousUser : ICurrentUser
+    {
+        public int? Id => null;
+        public string? Role => null;
+    }
 }
