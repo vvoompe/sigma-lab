@@ -9,7 +9,7 @@ import sys
 def main() -> int:
     try:
         needs = json.loads(os.environ["NEEDS_JSON"])
-        for job in ("changes", "build-and-test", "server-sdk-compatibility"):
+        for job in ("changes", "build-and-test", "server-sdk-compatibility", "docker-smoke"):
             if needs[job]["result"] != "success":
                 print(f"НЕ виконано: {job} = {needs[job]['result']}")
                 return 1

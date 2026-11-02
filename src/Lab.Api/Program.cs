@@ -16,6 +16,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi(options =>
     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>());
 builder.Services.AddExceptionHandler<UnhandledExceptionHandler>();
+builder.Services.AddHealthChecks().AddCheck<DatabaseReadiness>("database");
 
 var app = builder.Build();
 
@@ -33,6 +34,7 @@ if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
 
 app.MapControllers();
 app.MapOpenApi();
+app.MapHealthChecks("/health/ready").AllowAnonymous();
 
 await app.RunAsync();
 
