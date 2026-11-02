@@ -153,6 +153,7 @@ public sealed class MeasurementSyncRegressionTests
 
     private static string PostgresConnection() => new NpgsqlConnectionStringBuilder(
         Environment.GetEnvironmentVariable("LAB_TEST_POSTGRES_CONNECTION")
+        ?? Environment.GetEnvironmentVariable("ConnectionStrings__Postgres")
         ?? throw new InvalidOperationException("Задайте тестове підключення PostgreSQL."))
         { Database = "resource_api_" + Guid.NewGuid().ToString("N") }.ConnectionString;
 
