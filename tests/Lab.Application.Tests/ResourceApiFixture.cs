@@ -38,7 +38,8 @@ internal sealed class BeforeResourceSave : SaveChangesInterceptor
     }
 }
 
-internal sealed class ResourceApiFixture(string? postgresConnection = null, string? sqliteConnectionString = null) : IAsyncDisposable
+internal sealed class ResourceApiFixture(string? postgresConnection = null, string? sqliteConnectionString = null,
+    IInterceptor? queryInterceptor = null) : IAsyncDisposable
 {
     private readonly SqliteConnection connection = new("Data Source=:memory:");
     private WebApplicationFactory<Program>? factory;
@@ -54,6 +55,7 @@ internal sealed class ResourceApiFixture(string? postgresConnection = null, stri
 
     private void ConfigureOptions(DbContextOptionsBuilder options)
     {
+        if (queryInterceptor is not null) options.AddInterceptors(queryInterceptor);
         if (postgresConnection is null && sqliteConnectionString is not null)
             options.UseSqlite(sqliteConnectionString, sqlite => sqlite.MigrationsAssembly("Lab.Migrations.Sqlite"));
         else if (postgresConnection is null)
