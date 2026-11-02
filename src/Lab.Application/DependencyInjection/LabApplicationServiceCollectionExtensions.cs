@@ -2,6 +2,7 @@ using Lab.Application.Abstractions;
 using Lab.Application.Security;
 using Lab.Application.Sites;
 using Lab.Application.Resources;
+using Lab.Application.Sync;
 using Lab.Domain.Security;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,6 +20,8 @@ public static class LabApplicationServiceCollectionExtensions
         services.AddScoped<ISiteService, SiteService>();
         services.AddScoped<IInstrumentService, InstrumentService>();
         services.AddScoped<IExperimentService, ExperimentService>();
+        services.AddScoped<IMeasurementSyncService, MeasurementSyncService>();
+        services.AddScoped<MeasurementSyncAttempt>();
         return services;
     }
 }
