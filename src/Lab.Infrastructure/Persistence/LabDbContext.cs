@@ -7,6 +7,7 @@ using Lab.Domain.Instruments;
 using Lab.Domain.Experiments;
 using Lab.Domain.Measurements;
 using Lab.Domain.ReferenceValues;
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -39,8 +40,10 @@ public sealed class LabDbContext(DbContextOptions<LabDbContext> options)
 
     /// <inheritdoc />
     /// <inheritdoc />
-    public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default) =>
-        Database.BeginTransactionAsync(cancellationToken);
+    public Task<IDbContextTransaction> BeginTransactionAsync(
+        IsolationLevel isolationLevel = IsolationLevel.ReadCommitted,
+        CancellationToken cancellationToken = default) =>
+        Database.BeginTransactionAsync(isolationLevel, cancellationToken);
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
