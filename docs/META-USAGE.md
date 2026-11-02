@@ -152,6 +152,15 @@ Codex використано для незалежного review #42/#47 і в�
 щоб не залежати від локалізованого формату Message та не показувати actual value.
 Автор зони має прочитати зміни й результати перед захистом; локальний прогін і CI
 наведені у PR, схвалення власного PR не виконувалось.
+
+### Продовження Z2, 02.11.2026 — Docker #10
+
+Codex згенерував multi-stage API Dockerfile, .dockerignore, кореневий compose,
+readiness-запит до мігрованої схеми, HTTP-тест та наскрізний docker-smoke у CI/gate.
+Перевірено новий окремий named volume: API 201 створює кириличний Site, той самий
+рядок читається PostgreSQL і API 200; 4 міграції, обидва healthy, non-root без SDK.
+Runtime-бібліотеку GSSAPI й curl явно пояснено в Dockerfile. Власні секрети не
+входять у Git/build context; Z3 bootstrap та Z4 Worker не переписувалися.
 ## 4. Ваня - зона Z3 (автентифікація, ролі, володіння ресурсами, аудит)
 
 **Інструмент.** Copilot SDK у VS Code; локальні файли, .NET SDK 10.0.100 і xUnit.
