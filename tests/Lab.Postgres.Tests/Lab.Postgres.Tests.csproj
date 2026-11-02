@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
@@ -14,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../src/Lab.Api/Lab.Api.csproj" />
     <ProjectReference Include="..\..\src\Lab.Contracts\Lab.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Lab.Domain\Lab.Domain.csproj" />
     <ProjectReference Include="..\..\src\Lab.Infrastructure\Lab.Infrastructure.csproj" />
@@ -22,7 +24,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\src\Lab.Client.Maui\Sync\SyncQueueStore.cs" Link="Sync\SyncQueueStore.cs" />
+    <Compile Include="../Lab.Application.Tests/ResourceApiFixture.cs" Link="Support/ResourceApiFixture.cs" />
+    <Compile Include="../Lab.Application.Tests/ApiTestJwt.cs" Link="Support/ApiTestJwt.cs" />
+    <Compile Include="../../src/Lab.Worker/SeriesProcessor.cs" Link="Worker/SeriesProcessor.cs" />
+    <Compile Include="../../src/Lab.Worker/SyncWorker.cs" Link="Worker/SyncWorker.cs" />
+    <Compile Include="../../src/Lab.Client.Maui/Sync/*.cs" Link="Sync/%(Filename)%(Extension)" />
+    <Compile Include="../../src/Lab.Client.Maui/Services/LabApiClient.cs" Link="Services/LabApiClient.cs" />
+    <Compile Include="../../src/Lab.Client.Maui/Services/ClientAccount.cs" Link="Services/ClientAccount.cs" />
+    <Compile Include="../../src/Lab.Client.Maui/Data/ExperimentCache.cs" Link="Data/ExperimentCache.cs" />
+    <Compile Include="../../src/Lab.Client.Maui/ViewModels/*.cs" Link="ViewModels/%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Lab.Client.Maui\Data\LocalDatabaseService.cs" Link="Data\LocalDatabaseService.cs" />
   </ItemGroup>
 

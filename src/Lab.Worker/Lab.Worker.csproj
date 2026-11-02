@@ -10,6 +10,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Lab.Infrastructure\Lab.Infrastructure.csproj" />
+    <ProjectReference Include="../Lab.Migrations.Sqlite/Lab.Migrations.Sqlite.csproj" />
+    <ProjectReference Include="../Lab.Migrations.Postgres/Lab.Migrations.Postgres.csproj" />
   </ItemGroup>
 
   <ItemGroup>

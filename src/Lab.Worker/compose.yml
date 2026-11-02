@@ -1,0 +1,50 @@
+# Стек для перевірки #15. Контекст збірки — корінь репозиторію; пароль і JWT лише з середовища.
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: sigma_z4
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: ${LAB_PG_PASSWORD:?Задайте пароль тестової PostgreSQL}
+    ports:
+      - "127.0.0.1:${LAB_PG_PORT:-55435}:5432"
+    volumes:
+      - z4-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab -d sigma_z4"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  api:
+    build:
+      context: ../..
+      dockerfile: src/Lab.Worker/Dockerfile
+      target: api
+    environment:
+      LAB_DB_PROVIDER: Postgres
+      ConnectionStrings__Postgres: Host=postgres;Database=sigma_z4;Username=lab;Password=${LAB_PG_PASSWORD}
+      Jwt__Key: ${LAB_JWT_KEY:?Задайте випадковий JWT ключ мінімум 32 байти}
+      ASPNETCORE_URLS: http://+:8080
+    ports:
+      - "127.0.0.1:${LAB_API_PORT:-5085}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+  worker:
+    build:
+      context: ../..
+      dockerfile: src/Lab.Worker/Dockerfile
+      target: worker
+    environment:
+      LAB_DB_PROVIDER: Postgres
+      ConnectionStrings__Postgres: Host=postgres;Database=sigma_z4;Username=lab;Password=${LAB_PG_PASSWORD}
+      Worker__IntervalSeconds: 10
+      Worker__OutputDirectory: /exports
+    volumes:
+      - z4-exports:/exports
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  z4-postgres:
+  z4-exports:
