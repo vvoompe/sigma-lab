@@ -22,6 +22,7 @@ public static class LabApplicationServiceCollectionExtensions
         services.AddScoped<IInstrumentService, InstrumentService>();
         services.AddScoped<IExperimentAccessService, ExperimentAccessService>();
         services.AddScoped<IExperimentService, ExperimentService>();
+        services.AddScoped<IExperimentExportService, ExperimentExportService>();
         services.AddScoped<IExperimentContextService, ExperimentContextService>();
         services.AddScoped<IMeasurementSyncService, MeasurementSyncService>();
         services.AddScoped<MeasurementSyncAttempt>();
