@@ -1,20 +1,26 @@
 using System.Globalization;
 using System.Text;
 using Lab.Application.Abstractions;
+using Lab.Application.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lab.Application.Resources;
 
-/// <summary>HTTP CSV з єдиного знімка; правила читання делеговані наявному сервісу серій.</summary>
-public sealed class ExperimentExportService(IAppDbContext db, IExperimentService experiments) : IExperimentExportService
+/// <summary>HTTP CSV з єдиного знімка даних; фінальний SELECT повторює політику читання серії.</summary>
+public sealed class ExperimentExportService(
+    IAppDbContext db, IExperimentService experiments, IExperimentAccessService access) : IExperimentExportService
 {
     public async Task<byte[]> ExportCsvAsync(int id, CancellationToken cancellationToken = default)
     {
         var allowed = await experiments.GetAsync(id, cancellationToken);
-        var series = await db.Experiments.AsNoTracking().Include(item => item.Instrument)
+        // Призначення менеджера може змінитися без зміни Experiment.Version.
+        // Фільтр доступу має діяти в тому самому SELECT, який читає дані CSV.
+        var series = await access.ApplyReadFilter(db.Experiments.AsNoTracking()).Include(item => item.Instrument)
             .Include(item => item.Measurements).AsSingleQuery()
-            .SingleOrDefaultAsync(item => item.Id == id && item.Version == allowed.Version, cancellationToken)
-            ?? throw ResourceValidation.Conflict("Серію змінено перед експортом; перечитайте ресурс.");
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
+            ?? throw ResourceValidation.Missing();
+        if (series.Version != allowed.Version)
+            throw ResourceValidation.Conflict("Серію змінено перед експортом; перечитайте ресурс.");
         using var output = new MemoryStream();
         await using (var writer = new StreamWriter(output, new UTF8Encoding(true), leaveOpen: true))
         {
