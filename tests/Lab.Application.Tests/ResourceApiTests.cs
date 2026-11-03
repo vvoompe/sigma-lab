@@ -211,6 +211,16 @@ public sealed class ResourceApiTests : IAsyncLifetime, IAsyncDisposable
     }
 
     [Fact]
+    public async Task Researcher_cannot_sign_experiment_despite_ownership()
+    {
+        var item = await fixture.CreateExperimentAsync();
+        fixture.Authenticate("Researcher");
+        await AssertProblemAsync(
+            await Client.PostAsJsonAsync($"/api/experiments/{item.Id}/sign", new { expectedVersion = 1 }),
+            HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task Creating_with_foreign_instrument_or_site_is_404()
     {
         await using (var db = fixture.CreateContext())
