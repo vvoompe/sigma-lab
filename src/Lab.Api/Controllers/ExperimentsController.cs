@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Lab.Api.Controllers;
 
-/// <summary>Власні серії дослідника; підпис і доступ менеджера інтегруються окремо Z3.</summary>
+/// <summary>Серії дослідників і майданчиків, якими керує LabManager.</summary>
 [ApiController]
 [Route("api/experiments")]
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -42,6 +42,14 @@ public sealed class ExperimentsController(IExperimentService experiments) : Cont
     public async Task<ActionResult<ExperimentDto>> RenameAsync(
         [Range(1, int.MaxValue)] int id, [FromBody] RenameExperimentRequest request, CancellationToken cancellationToken) =>
         Ok(await experiments.RenameAsync(id, request, cancellationToken));
+
+    [HttpPost("{id:int}/sign")]
+    [ProducesResponseType<ExperimentDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ExperimentDto>> SignAsync(
+        [Range(1, int.MaxValue)] int id,
+        [FromBody] SignExperimentRequest request,
+        CancellationToken cancellationToken) =>
+        Ok(await experiments.SignAsync(id, request, cancellationToken));
 
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

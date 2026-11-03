@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Lab.Contracts.Security;
+using Lab.Application.Security;
 using Lab.Domain.Security;
 using Lab.Domain.Users;
 using Lab.Infrastructure.Persistence;
@@ -52,8 +53,8 @@ public sealed class AuthApiTests
         using var authenticated = await client.GetAsync("/api/sites");
         Assert.Equal(HttpStatusCode.OK, authenticated.StatusCode);
 
-        await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<LabDbContext>();
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var db = verificationScope.ServiceProvider.GetRequiredService<LabDbContext>();
         var credential = await db.UserCredentials.Include(item => item.User).SingleAsync();
         Assert.NotNull(credential.User);
         Assert.Equal(credential.UserId, credential.User.Id);
@@ -109,6 +110,33 @@ public sealed class AuthApiTests
         Assert.Equal(HttpStatusCode.Unauthorized, rejected.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, unknown.StatusCode);
         Assert.Equal(await rejected.Content.ReadAsStringAsync(), await unknown.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Перший_адміністратор_сідується_лише_на_чистій_базі()
+    {
+        await using var connection = await OpenConnectionAsync();
+        await using var factory = new AuthApiFactory(connection);
+        using var client = factory.CreateClient();
+        await InitializeDatabaseAsync(factory);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var seeder = scope.ServiceProvider.GetRequiredService<IInitialAdministratorSeeder>();
+            await seeder.SeedAsync("seed-admin@example.org", "Correct-Horse-123");
+            await seeder.SeedAsync("second-admin@example.org", "Correct-Horse-456");
+        }
+
+        using var login = await client.PostAsJsonAsync(
+            "/api/auth/login",
+            new LoginRequest { Email = "seed-admin@example.org", Password = "Correct-Horse-123" });
+        var token = await login.Content.ReadFromJsonAsync<AccessTokenResponse>();
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        Assert.Equal("Administrator", token?.Role);
+
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var db = verificationScope.ServiceProvider.GetRequiredService<LabDbContext>();
+        Assert.Equal(1, await db.UserCredentials.CountAsync(item => item.Role == UserRole.Administrator));
     }
 
     [Fact]

@@ -1,34 +1,60 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:sites="clr-namespace:Lab.Domain.Sites;assembly=Lab.Domain"
-             x:Class="Lab.Client.Maui.MainPage"
+             xmlns:vm="clr-namespace:Lab.Client.Maui.ViewModels"
+             xmlns:experiments="clr-namespace:Lab.Contracts.Experiments;assembly=Lab.Contracts"
+             xmlns:instruments="clr-namespace:Lab.Contracts.Instruments;assembly=Lab.Contracts"
+             xmlns:sites="clr-namespace:Lab.Contracts.Sites;assembly=Lab.Contracts"
+             xmlns:sync="clr-namespace:Lab.Client.Maui.Sync"
+             x:Class="Lab.Client.Maui.MainPage" x:DataType="vm:LaboratoryViewModel"
              Title="Польова лабораторія">
-    <Grid Padding="24" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="16">
-        <Label Text="Польова лабораторія"
-               FontSize="28"
-               FontAttributes="Bold"
-               SemanticProperties.HeadingLevel="Level1" />
-        <Label x:Name="SyncStatus"
-               Grid.Row="1"
-               Text="Черга синхронізації завантажується…" />
-        <Button Grid.Row="2"
-                Text="Оновити локальні дані"
-                Clicked="OnRefreshClicked" />
-        <CollectionView x:Name="SitesView"
-                        Grid.Row="3"
-                        EmptyView="У локальній базі поки немає майданчиків.">
-            <CollectionView.ItemTemplate>
-                <DataTemplate x:DataType="sites:Site">
-                    <Border Padding="12" Margin="0,0,0,8">
-                        <VerticalStackLayout Spacing="4">
-                            <Label Text="{Binding Name}" FontAttributes="Bold" FontSize="18" />
-                            <Label Text="{Binding Latitude, StringFormat='Широта: {0:F5}'}" />
-                            <Label Text="{Binding Longitude, StringFormat='Довгота: {0:F5}'}" />
-                        </VerticalStackLayout>
-                    </Border>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-        </CollectionView>
-    </Grid>
+    <ScrollView>
+        <VerticalStackLayout Padding="20" Spacing="12" IsEnabled="{Binding IsIdle}">
+            <Label Text="Польова лабораторія" FontSize="26" FontAttributes="Bold" />
+            <Label Text="{Binding Message}" LineBreakMode="WordWrap" />
+            <Entry Placeholder="HTTPS-адреса сервера" Text="{Binding Server}" Keyboard="Url" />
+            <Entry Placeholder="Email" Text="{Binding Email}" Keyboard="Email" />
+            <Entry Placeholder="Пароль" Text="{Binding Password}" IsPassword="True" />
+            <Button Text="Увійти та завантажити дані" Clicked="OnLogin" />
+            <Button Text="Вийти з акаунта" Clicked="OnLogout" />
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                <Button Text="Локальні серії" Clicked="OnLocal" />
+                <Button Grid.Column="1" Text="Завантажити з API" Clicked="OnDownload" />
+            </Grid>
+            <Label Text="Серії з локальної SQLite" FontAttributes="Bold" />
+            <CollectionView HeightRequest="180" ItemsSource="{Binding Experiments}" SelectedItem="{Binding SelectedExperiment}"
+                            SelectionMode="Single" EmptyView="У локальній базі поки немає серій. Завантажте їх із API.">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="experiments:ExperimentDto">
+                        <Border Padding="10" Margin="0,2">
+                            <VerticalStackLayout Spacing="3">
+                                <Label Text="{Binding Name}" FontAttributes="Bold" />
+                                <Label Text="{Binding Status, StringFormat='Стан: {0}'}" />
+                                <Label Text="{Binding Unit, StringFormat='Одиниця: {0}'}" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+            <Label Text="Створення серії (потрібна мережа)" FontAttributes="Bold" />
+            <Entry Placeholder="Назва нової серії" Text="{Binding NewExperimentName}" />
+            <Picker Title="Майданчик" ItemsSource="{Binding Sites}" ItemDisplayBinding="{Binding Name, x:DataType=sites:SiteDto}" SelectedItem="{Binding SelectedSite}" />
+            <Picker Title="Прилад" ItemsSource="{Binding Instruments}" ItemDisplayBinding="{Binding Name, x:DataType=instruments:InstrumentDto}" SelectedItem="{Binding SelectedInstrument}" />
+            <Button Text="Створити серію на сервері" Clicked="OnCreate" IsEnabled="{Binding CanWrite}" />
+            <Label Text="Внесення виміру — працює офлайн" FontAttributes="Bold" />
+            <Entry Placeholder="Значення в одиницях приладу" Text="{Binding MeasurementValue}" Keyboard="Numeric" />
+            <Button Text="Зберегти вимір у локальну чергу" Clicked="OnAdd" IsEnabled="{Binding CanWrite}" />
+            <Button Text="Синхронізувати чергу" Clicked="OnSync" IsEnabled="{Binding CanWrite}" />
+            <Picker Title="Операції черги" ItemsSource="{Binding Operations}" ItemDisplayBinding="{Binding DisplayName, x:DataType=sync:SyncQueueItem}" SelectedItem="{Binding SelectedOperation}" />
+            <Label Text="{Binding OperationDetails}" />
+            <Label Text="Остання помилка:" />
+            <Label Text="{Binding SelectedOperation.LastError}" />
+            <Label Text="{Binding SelectedOperation.Status, StringFormat='Стан: {0}'}" />
+            <Button Text="Повторити з тією самою версією" Clicked="OnRetry" />
+            <Button Text="Конфлікт: повторити для поточної версії сервера…" Clicked="OnRebase" IsEnabled="{Binding CanWrite}" />
+            <Button Text="Відкинути невдалу локальну операцію…" Clicked="OnDiscard" />
+            <Button Text="Статистика з сервера" Clicked="OnStatistics" />
+            <Label Text="{Binding Statistics}" LineBreakMode="WordWrap" />
+        </VerticalStackLayout>
+    </ScrollView>
 </ContentPage>

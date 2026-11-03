@@ -19,6 +19,7 @@ public sealed record SyncQueueItem
     public DateTime? LastAttemptAtUtc { get; init; }
     public int Attempts { get; init; }
     public string? LastError { get; init; }
+    public string DisplayName => $"Серія {ResourceId}: {Status}, спроб {Attempts}";
 }
 /// <summary>Атомарно зберігає чергу офлайн-операцій клієнта.</summary>
 public sealed class SyncQueueStore(string filePath)
@@ -37,6 +38,7 @@ public sealed class SyncQueueStore(string filePath)
         ArgumentException.ThrowIfNullOrWhiteSpace(resourceId);
         ArgumentNullException.ThrowIfNull(payload);
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        if (operationId == Guid.Empty) throw new ArgumentException("UUID операції не може бути порожнім.", nameof(operationId));
         await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -45,6 +47,8 @@ public sealed class SyncQueueStore(string filePath)
             var existing = items.FirstOrDefault(item => item.OperationId == id);
             if (existing is not null)
             {
+                if (existing.ResourceType != resourceType || existing.ResourceId != resourceId || existing.Payload != payload)
+                    throw new InvalidOperationException("UUID вже використаний для іншої операції.");
                 return existing;
             }
             var item = new SyncQueueItem
@@ -72,9 +76,8 @@ public sealed class SyncQueueStore(string filePath)
         await Gate.WaitAsync(cancellationToken);
         try
         {
-            return (await ReadAsync(cancellationToken))
-                .OrderBy(item => item.CreatedAtUtc)
-                .ToArray();
+            // Порядок додавання зберігається навіть після переведення годинника пристрою назад.
+            return (await ReadAsync(cancellationToken)).ToArray();
         }
         finally
         {
@@ -110,6 +113,29 @@ public sealed class SyncQueueStore(string filePath)
         UpdateAsync(operationId, item => item.Status == SyncQueueStatus.Failed
             ? item with { Status = SyncQueueStatus.Pending, LastError = null }
             : item, cancellationToken);
+    /// <summary>Явне рішення користувача після перегляду нової версії сервера.</summary>
+    public Task<SyncQueueItem> RebaseAsync(Guid operationId, string payload, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(payload);
+        return UpdateAsync(operationId, item => item.Status == SyncQueueStatus.Failed
+            ? item with { Status = SyncQueueStatus.Pending, Payload = payload, LastError = null }
+            : throw new InvalidOperationException("Змінювати можна лише невдалу операцію."), cancellationToken);
+    }
+    /// <summary>Видаляє невдалу команду тільки після явного рішення користувача.</summary>
+    public async Task DiscardFailedAsync(Guid operationId, CancellationToken cancellationToken = default)
+    {
+        await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var items = await ReadAsync(cancellationToken).ConfigureAwait(false);
+            var item = items.SingleOrDefault(entry => entry.OperationId == operationId)
+                ?? throw new KeyNotFoundException("Операцію не знайдено.");
+            if (item.Status != SyncQueueStatus.Failed) throw new InvalidOperationException("Відкидати можна лише невдалу команду.");
+            items.Remove(item);
+            await WriteAsync(items, cancellationToken).ConfigureAwait(false);
+        }
+        finally { Gate.Release(); }
+    }
     private async Task<SyncQueueItem> UpdateAsync(
         Guid operationId,
         Func<SyncQueueItem, SyncQueueItem> update,
